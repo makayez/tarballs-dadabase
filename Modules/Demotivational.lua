@@ -50,18 +50,27 @@ local defaultSayings = {
     "Not everything is a lesson. Sometimes you just fail.",
     "Fate is like a strange, unpopular restaurant filled with odd little waiters who bring you things you never asked for and don't always like.",
     "The worst part of success is trying to find someone who is happy for you.",
-    "Your life can’t fall apart if you never had it together.",
+    "Your life can't fall apart if you never had it together.",
     "The road to success is always under construction.",
     "Doing nothing is very hard to do… you never know when you're finished.",
     "The reward for good work is more work.",
-    "Go ahead and take risks – it gives the rest of us something to laugh at.",
-    "There’s always someone on Youtube that can do it better than you.",
-    "It’s only when you look at an ant through a magnifying glass on a sunny day that you realize how often they burst into flames.",
-    "If at first, you don’t succeed, destroy all evidence that you tried.",
-    
-
-
-
+    "Go ahead and take risks - it gives the rest of us something to laugh at.",
+    "There's always someone on Youtube that can do it better than you.",
+    "It's only when you look at an ant through a magnifying glass on a sunny day that you realize how often they burst into flames.",
+    "If at first, you don't succeed, destroy all evidence that you tried.",
+    "Stubbornness - because somebody has to be right and it might as well be me.",
+    "Never give up. Never stop trying to exceed your limits. We need the entertainment.",
+    "If you never believe in anything, you/ll never be disappointed.",
+    "Hope is the first step on the road to disappointment.",
+    "I look at the world and see a rainbow of people who all suck in different ways.",
+    "Raids - none of us is as dumb as all of us."
+    "Don't cry because it's over. Smile because if you don't, everyone will ask you what's wrong.",
+    "TEAMWORK: A few harmless flakes working together can unleash an avalanche of destruction.",
+    "The light at the end of the tunnel has been turned off due to budget cuts.",
+    "Success is just a few bad decisions away.",
+    "It's all downhill from here.",
+    "Will it be easy? Nope. Worth it? Absolutely not!",
+    "Happiness is just sadness that hasn’t happened yet."
 }
 
 -- Register with Database Manager
