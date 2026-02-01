@@ -1,0 +1,9 @@
+## Interface: 120001, 120000
+## Title: Tarball's Dadabase
+## Notes: Dispenses dad jokes upon group wipes
+## Author: Tarball-Whisperwind [A]
+## Version: 0.3.0
+## SavedVariables: TarballsDadabaseDB
+
+Dadabase_Jokes.lua
+TarballsDadabase.lua
