@@ -292,17 +292,17 @@ local function CreateConfigPanel()
         {text = "Ready Check", value = SOUNDKIT.READY_CHECK or 8960},
         {text = "Raid Warning", value = SOUNDKIT.RAID_WARNING or 8959},
         {text = "Alarm Clock", value = SOUNDKIT.ALARM_CLOCK_WARNING_3 or 12867},
-        {text = "Tell Received", value = SOUNDKIT.TELL_MESSAGE or 3081},
+        {text = "Message Alert", value = SOUNDKIT.UI_WORLDQUEST_COMPLETE or 73182},
         {text = "Whisper Received", value = SOUNDKIT.IG_CHAT_EMOTE_BUTTON or 567},
-        {text = "Quest Added", value = SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01 or 55183},
-        {text = "Quest Removed", value = SOUNDKIT.UI_QUEST_ROLLING_BACKWARD_01 or 55184},
+        {text = "Quest Complete", value = SOUNDKIT.UI_QUEST_COMPLETE or 878},
+        {text = "Achievement", value = SOUNDKIT.ACHIEVEMENT_MENU_OPEN or 3337},
         {text = "Map Ping", value = SOUNDKIT.MAP_PING or 3175},
-        {text = "Item Push", value = SOUNDKIT.UI_BAG_SLOTS_HIGHLIGHT or 21347},
+        {text = "Loot Coin", value = SOUNDKIT.LOOT_MONEY_COINS or 120},
         {text = "Auction Window", value = SOUNDKIT.AUCTION_WINDOW_OPEN or 5274},
-        {text = "UI Click", value = SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856},
+        {text = "UI Tick", value = SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857},
         {text = "UI Error", value = SOUNDKIT.IG_MAINMENU_OPTION or 852},
-        {text = "UI Bell Toll", value = SOUNDKIT.UI_ORDERHALL_TALENT_READY_TOAST or 73743},
-        {text = "Gong", value = SOUNDKIT.UI_80_GARRISON_TALENT_AVAILABLE or 45477}
+        {text = "UI Bell", value = SOUNDKIT.UI_ORDERHALL_TALENT_READY_TOAST or 73743},
+        {text = "Raid Boss Warning", value = SOUNDKIT.RAID_BOSS_EMOTE_WARNING or 44854}
     }
 
     UIDropDownMenu_SetWidth(soundDropdown, 180)
