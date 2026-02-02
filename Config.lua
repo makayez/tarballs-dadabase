@@ -288,15 +288,15 @@ local function CreateConfigPanel()
     soundDropdown:SetPoint("TOPLEFT", 110, yOffset + 5)
 
     local soundOptions = {
-        {text = "Level Up", value = "LEVELUP"},
-        {text = "Achievement", value = "AchievementMenuOpen"},
-        {text = "Quest Complete", value = "QUESTCOMPLETED"},
-        {text = "Ready Check", value = "ReadyCheck"},
-        {text = "Raid Warning", value = "RaidWarning"},
-        {text = "Auction Window Open", value = "AuctionWindowOpen"},
-        {text = "Glyph Destroyed", value = "GLYPHDESTROYEDSOCKET"},
-        {text = "UI Ethereal Window Open", value = "UI_EtherealWindow_Open"},
-        {text = "UI Warlock Portal", value = "UI_WarlocksGlimpseSpellOpen"}
+        {text = "Level Up", value = SOUNDKIT.LEVEL_UP or 888},
+        {text = "Achievement", value = SOUNDKIT.ACHIEVEMENT_MENU_OPEN or 3337},
+        {text = "Quest Complete", value = SOUNDKIT.UI_QUEST_COMPLETE or 878},
+        {text = "Ready Check", value = SOUNDKIT.READY_CHECK or 8960},
+        {text = "Raid Warning", value = SOUNDKIT.RAID_WARNING or 8959},
+        {text = "Auction Window Open", value = SOUNDKIT.AUCTION_WINDOW_OPEN or 5274},
+        {text = "Glyph Destroyed", value = SOUNDKIT.GLYPH_DESTROYEDSOCKET or 54039},
+        {text = "UI Ethereal Window Open", value = SOUNDKIT.UI_ETHEREAL_WINDOW_OPEN or 3193},
+        {text = "UI Warlock Portal", value = SOUNDKIT.UI_WARLOCKSGLIMPSE_SPELLOPEN or 3194}
     }
 
     UIDropDownMenu_SetWidth(soundDropdown, 180)

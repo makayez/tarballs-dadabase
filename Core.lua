@@ -80,7 +80,7 @@ if TarballsDadabaseDB.soundEnabled == nil then
 end
 
 if TarballsDadabaseDB.soundEffect == nil then
-    TarballsDadabaseDB.soundEffect = "LEVELUP"
+    TarballsDadabaseDB.soundEffect = SOUNDKIT.LEVEL_UP or 888
 end
 
 -- Usage statistics
