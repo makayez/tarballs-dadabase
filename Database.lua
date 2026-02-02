@@ -250,7 +250,13 @@ function DB:GetRandomContent(trigger, group)
             local triggerMatch = moduleDB.triggers[trigger] == true
 
             -- Check if this module matches the group
-            local groupMatch = moduleDB.groups[group] == true
+            -- For solo players (group is nil), skip group requirement for death triggers
+            local groupMatch
+            if group == nil and trigger == "death" then
+                groupMatch = true
+            else
+                groupMatch = moduleDB.groups[group] == true
+            end
 
             if triggerMatch and groupMatch then
                 -- Add all effective content from this module to the pool

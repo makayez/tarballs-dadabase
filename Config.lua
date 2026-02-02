@@ -50,6 +50,10 @@ local function CreateConfigPanel()
             if i == tabIndex then
                 tab:Show()
                 tabButtons[i]:SetAlpha(1.0)
+                -- Refresh stats when showing settings tab
+                if i == 1 and tab.UpdateStats then
+                    tab:UpdateStats()
+                end
             else
                 tab:Hide()
                 tabButtons[i]:SetAlpha(0.6)
@@ -78,6 +82,76 @@ local function CreateConfigPanel()
     versionLabel:SetText("Version: " .. Dadabase.VERSION)
     yOffset = yOffset - 30
 
+    -- Global Enable/Disable
+    local globalEnableCheckbox = CreateFrame("CheckButton", nil, settingsTab, "UICheckButtonTemplate")
+    globalEnableCheckbox:SetPoint("TOPLEFT", 10, yOffset)
+    globalEnableCheckbox.text = globalEnableCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    globalEnableCheckbox.text:SetPoint("LEFT", globalEnableCheckbox, "RIGHT", 5, 0)
+    globalEnableCheckbox.text:SetText("Enable Addon")
+    globalEnableCheckbox:SetChecked(TarballsDadabaseDB.globalEnabled)
+    globalEnableCheckbox:SetScript("OnClick", function(self)
+        TarballsDadabaseDB.globalEnabled = self:GetChecked()
+        -- Refresh all module tabs to update their disabled state
+        for _, tab in ipairs(tabs) do
+            if tab.RefreshControls then
+                tab:RefreshControls()
+            end
+        end
+    end)
+    yOffset = yOffset - 40
+
+    -- Divider
+    local divider1 = settingsTab:CreateTexture(nil, "ARTWORK")
+    divider1:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+    divider1:SetSize(640, 1)
+    divider1:SetPoint("TOPLEFT", 10, yOffset)
+    yOffset = yOffset - 20
+
+    -- Statistics Section
+    local statsLabel = settingsTab:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    statsLabel:SetPoint("TOPLEFT", 10, yOffset)
+    statsLabel:SetText("Statistics:")
+    yOffset = yOffset - 25
+
+    local function GetModuleStats()
+        local stats = {}
+        for moduleId, module in pairs(DB.modules) do
+            local content = DB:GetEffectiveContent(moduleId)
+            local told = TarballsDadabaseDB.stats[moduleId] or 0
+            stats[moduleId] = {
+                name = module.name,
+                count = #content,
+                told = told
+            }
+        end
+        return stats
+    end
+
+    local statsText = settingsTab:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    statsText:SetPoint("TOPLEFT", 20, yOffset)
+    statsText:SetJustifyH("LEFT")
+
+    local function UpdateStats()
+        local stats = GetModuleStats()
+        local text = ""
+        for moduleId, stat in pairs(stats) do
+            text = text .. stat.name .. ": " .. stat.count .. " items, " .. stat.told .. " told\n"
+        end
+        statsText:SetText(text)
+    end
+
+    UpdateStats()
+    settingsTab.UpdateStats = UpdateStats
+    yOffset = yOffset - 80
+
+    -- Divider
+    local divider2 = settingsTab:CreateTexture(nil, "ARTWORK")
+    divider2:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+    divider2:SetSize(640, 1)
+    divider2:SetPoint("TOPLEFT", 10, yOffset)
+    yOffset = yOffset - 20
+
+    -- Cooldown Section
     local cooldownLabel = settingsTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     cooldownLabel:SetPoint("TOPLEFT", 10, yOffset)
     cooldownLabel:SetText("Global cooldown between messages:")
@@ -103,17 +177,151 @@ local function CreateConfigPanel()
         TarballsDadabaseDB.cooldown = value
         self.valueText:SetText(value .. " seconds")
     end)
+    yOffset = yOffset - 50
+
+    -- Sound Effect Section
+    local soundCheckbox = CreateFrame("CheckButton", nil, settingsTab, "UICheckButtonTemplate")
+    soundCheckbox:SetPoint("TOPLEFT", 10, yOffset)
+    soundCheckbox.text = soundCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    soundCheckbox.text:SetPoint("LEFT", soundCheckbox, "RIGHT", 5, 0)
+    soundCheckbox.text:SetText("Play sound effect when content triggers")
+    soundCheckbox:SetChecked(TarballsDadabaseDB.soundEnabled)
+    soundCheckbox:SetScript("OnClick", function(self)
+        TarballsDadabaseDB.soundEnabled = self:GetChecked()
+    end)
+    yOffset = yOffset - 35
+
+    -- Sound dropdown
+    local soundLabel = settingsTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    soundLabel:SetPoint("TOPLEFT", 30, yOffset)
+    soundLabel:SetText("Sound effect:")
+
+    local soundDropdown = CreateFrame("Frame", "TarballsDadabaseSoundDropdown", settingsTab, "UIDropDownMenuTemplate")
+    soundDropdown:SetPoint("TOPLEFT", 110, yOffset + 5)
+
+    local soundOptions = {
+        {text = "Level Up", value = "LEVELUP"},
+        {text = "Achievement", value = "AchievementMenuOpen"},
+        {text = "Quest Complete", value = "QUESTCOMPLETED"},
+        {text = "Ready Check", value = "ReadyCheck"},
+        {text = "Raid Warning", value = "RaidWarning"},
+        {text = "Auction Window Open", value = "AuctionWindowOpen"},
+        {text = "Glyph Destroyed", value = "GLYPHDESTROYEDSOCKET"},
+        {text = "UI Ethereal Window Open", value = "UI_EtherealWindow_Open"},
+        {text = "UI Warlock Portal", value = "UI_WarlocksGlimpseSpellOpen"}
+    }
+
+    UIDropDownMenu_SetWidth(soundDropdown, 180)
+    UIDropDownMenu_Initialize(soundDropdown, function(self, level)
+        for _, option in ipairs(soundOptions) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = option.text
+            info.value = option.value
+            info.func = function()
+                TarballsDadabaseDB.soundEffect = option.value
+                UIDropDownMenu_SetText(soundDropdown, option.text)
+                PlaySound(option.value)
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+
+    -- Set initial dropdown text
+    local currentSound = "Level Up"
+    for _, option in ipairs(soundOptions) do
+        if option.value == TarballsDadabaseDB.soundEffect then
+            currentSound = option.text
+            break
+        end
+    end
+    UIDropDownMenu_SetText(soundDropdown, currentSound)
+
+    -- About Tab
+    local aboutTabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    aboutTabBtn:SetSize(100, 25)
+    aboutTabBtn:SetPoint("LEFT", settingsTabBtn, "RIGHT", 5, 0)
+    aboutTabBtn:SetText("About")
+    aboutTabBtn:SetScript("OnClick", function() ShowTab(2) end)
+    table.insert(tabButtons, aboutTabBtn)
+
+    local aboutTab = CreateFrame("Frame", nil, panel)
+    aboutTab:SetPoint("TOPLEFT", 20, -70)
+    aboutTab:SetPoint("BOTTOMRIGHT", -20, 20)
+    table.insert(tabs, aboutTab)
+
+    -- Build about tab content
+    local aboutYOffset = -10
+
+    local aboutTitle = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+    aboutTitle:SetPoint("TOP", 0, aboutYOffset)
+    aboutTitle:SetText("Tarball's Dadabase")
+    aboutYOffset = aboutYOffset - 40
+
+    local aboutDesc = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    aboutDesc:SetPoint("TOPLEFT", 20, aboutYOffset)
+    aboutDesc:SetPoint("TOPRIGHT", -20, aboutYOffset)
+    aboutDesc:SetJustifyH("LEFT")
+    aboutDesc:SetSpacing(3)
+    aboutDesc:SetText(
+        "A World of Warcraft addon that shares uplifting dad jokes, motivational quotes, " ..
+        "and memorable guild sayings when your raid wipes or when you experience a personal death.\n\n" ..
+        "Perfect for lightening the mood after a difficult encounter!"
+    )
+    aboutYOffset = aboutYOffset - 100
+
+    local howToTitle = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    howToTitle:SetPoint("TOPLEFT", 20, aboutYOffset)
+    howToTitle:SetText("How to Add Your Own Content")
+    aboutYOffset = aboutYOffset - 30
+
+    local howToDesc = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    howToDesc:SetPoint("TOPLEFT", 30, aboutYOffset)
+    howToDesc:SetPoint("TOPRIGHT", -20, aboutYOffset)
+    howToDesc:SetJustifyH("LEFT")
+    howToDesc:SetSpacing(3)
+    howToDesc:SetText(
+        "1. Navigate to the Dad Jokes, Demotivational, or Guild Quotes tabs\n" ..
+        "2. Scroll to the content editor at the bottom\n" ..
+        "3. Add your own jokes or quotes (one per line)\n" ..
+        "4. Delete any lines you don't want\n" ..
+        "5. Click 'Save Changes' to update\n\n" ..
+        "Your custom additions will be preserved even when the addon updates with new default content!"
+    )
+    aboutYOffset = aboutYOffset - 150
+
+    local githubTitle = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    githubTitle:SetPoint("TOPLEFT", 20, aboutYOffset)
+    githubTitle:SetText("GitHub Repository")
+    aboutYOffset = aboutYOffset - 30
+
+    local githubLink = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    githubLink:SetPoint("TOPLEFT", 30, aboutYOffset)
+    githubLink:SetJustifyH("LEFT")
+    githubLink:SetText("https://github.com/yourusername/tarballs-dadabase")
+    aboutYOffset = aboutYOffset - 50
+
+    local thanksTitle = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    thanksTitle:SetPoint("TOPLEFT", 20, aboutYOffset)
+    thanksTitle:SetText("Thank You!")
+    aboutYOffset = aboutYOffset - 30
+
+    local thanksDesc = aboutTab:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    thanksDesc:SetPoint("TOPLEFT", 30, aboutYOffset)
+    thanksDesc:SetPoint("TOPRIGHT", -20, aboutYOffset)
+    thanksDesc:SetJustifyH("LEFT")
+    thanksDesc:SetSpacing(3)
+    thanksDesc:SetText(
+        "Thank you for using Tarball's Dadabase! I hope this addon brings a smile to your " ..
+        "raid team's faces during those challenging progression nights.\n\n" ..
+        "May your wipes be few and your dad jokes be legendary!\n\n" ..
+        "- Tarball-Whisperwind"
+    )
 
     -- Module Tabs
     for _, moduleTab in ipairs(Config.moduleTabs) do
         local tabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
         tabBtn:SetSize(100, 25)
-
-        if #tabButtons == 1 then
-            tabBtn:SetPoint("LEFT", tabButtons[1], "RIGHT", 5, 0)
-        else
-            tabBtn:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 5, 0)
-        end
+        tabBtn:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 5, 0)
 
         tabBtn:SetText(moduleTab.name)
         local tabIndex = #tabs + 1
@@ -331,6 +539,57 @@ function Config:BuildModuleContent(container, moduleId)
         end)
     end)
 
+    -- Store all controls that should be disabled when addon is globally disabled
+    local controls = {
+        enableCheckbox,
+        wipeCheckbox,
+        deathCheckbox,
+        raidCheckbox,
+        partyCheckbox,
+        saveBtn,
+        resetBtn,
+        editBox
+    }
+
+    -- Function to refresh control states based on global enabled
+    local function RefreshControls()
+        local globalEnabled = TarballsDadabaseDB.globalEnabled
+
+        for _, control in ipairs(controls) do
+            if globalEnabled then
+                control:Enable()
+                if control.text then
+                    control.text:SetTextColor(1, 1, 1)
+                end
+            else
+                control:Disable()
+                if control.text then
+                    control.text:SetTextColor(0.5, 0.5, 0.5)
+                end
+            end
+        end
+
+        -- Add/remove tooltip handlers
+        for _, control in ipairs(controls) do
+            if not globalEnabled then
+                control:SetScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:SetText("Addon Disabled", 1, 0, 0)
+                    GameTooltip:AddLine("Enable the addon in the Settings tab to use this feature.", 1, 1, 1, true)
+                    GameTooltip:Show()
+                end)
+                control:SetScript("OnLeave", function(self)
+                    GameTooltip:Hide()
+                end)
+            else
+                control:SetScript("OnEnter", nil)
+                control:SetScript("OnLeave", nil)
+            end
+        end
+    end
+
+    container.RefreshControls = RefreshControls
+    RefreshControls()
     LoadContent()
 end
 

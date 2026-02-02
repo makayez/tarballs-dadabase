@@ -69,6 +69,23 @@ if TarballsDadabaseDB.debug == nil then
     TarballsDadabaseDB.debug = false
 end
 
+-- Global enabled flag
+if TarballsDadabaseDB.globalEnabled == nil then
+    TarballsDadabaseDB.globalEnabled = true
+end
+
+-- Sound effect settings
+if TarballsDadabaseDB.soundEnabled == nil then
+    TarballsDadabaseDB.soundEnabled = false
+end
+
+if TarballsDadabaseDB.soundEffect == nil then
+    TarballsDadabaseDB.soundEffect = "LEVELUP"
+end
+
+-- Usage statistics
+TarballsDadabaseDB.stats = TarballsDadabaseDB.stats or {}
+
 -- ============================================================================
 -- Utilities
 -- ============================================================================
@@ -106,6 +123,12 @@ end
 local function TriggerContent(triggerType)
     DebugPrint("TriggerContent called: " .. triggerType)
 
+    -- Check if globally enabled
+    if not TarballsDadabaseDB.globalEnabled then
+        DebugPrint("  BLOCKED: Addon globally disabled")
+        return
+    end
+
     -- Check cooldown
     local now = GetTime()
     local timeSinceLastContent = now - lastContentTime
@@ -118,7 +141,9 @@ local function TriggerContent(triggerType)
 
     -- Get current group
     local group = GetCurrentGroup()
-    if not group then
+
+    -- For wipe triggers, require a group
+    if not group and triggerType ~= "death" then
         DebugPrint("  BLOCKED: Not in a group")
         return
     end
@@ -130,6 +155,17 @@ local function TriggerContent(triggerType)
         lastContentTime = now
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
         SendContent(prefix .. content, group)
+
+        -- Track statistics
+        if not TarballsDadabaseDB.stats[moduleId] then
+            TarballsDadabaseDB.stats[moduleId] = 0
+        end
+        TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+
+        -- Play sound effect if enabled
+        if TarballsDadabaseDB.soundEnabled and TarballsDadabaseDB.soundEffect then
+            PlaySound(TarballsDadabaseDB.soundEffect)
+        end
     else
         DebugPrint("  BLOCKED: No matching content found")
     end
