@@ -237,7 +237,7 @@ function DB:GetContentPrefix(moduleId)
     return prefixes[moduleId] or ""
 end
 
-function DB:GetRandomContent(trigger, group)
+function DB:GetRandomContent(trigger, group, ignoreTriggers)
     -- Build pool of all matching content from enabled modules
     -- Each entry is {content = "text", moduleId = "id"}
     local contentPool = {}
@@ -246,19 +246,28 @@ function DB:GetRandomContent(trigger, group)
         local moduleDB = TarballsDadabaseDB.modules[moduleId]
 
         if moduleDB and moduleDB.enabled then
-            -- Check if this module matches the trigger
-            local triggerMatch = moduleDB.triggers[trigger] == true
+            local shouldInclude = false
 
-            -- Check if this module matches the group
-            -- For solo players (group is nil), skip group requirement for death triggers
-            local groupMatch
-            if group == nil and trigger == "death" then
-                groupMatch = true
+            if ignoreTriggers then
+                -- For manual commands, ignore trigger/group settings
+                shouldInclude = true
             else
-                groupMatch = moduleDB.groups[group] == true
+                -- Check if this module matches the trigger
+                local triggerMatch = moduleDB.triggers[trigger] == true
+
+                -- Check if this module matches the group
+                -- For solo players (group is nil), skip group requirement for death triggers
+                local groupMatch
+                if group == nil and trigger == "death" then
+                    groupMatch = true
+                else
+                    groupMatch = moduleDB.groups[group] == true
+                end
+
+                shouldInclude = triggerMatch and groupMatch
             end
 
-            if triggerMatch and groupMatch then
+            if shouldInclude then
                 -- Add all effective content from this module to the pool
                 local content = self:GetEffectiveContent(moduleId)
                 for _, item in ipairs(content) do

@@ -276,8 +276,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         print("Tarball's Dadabase cooldown set to " .. value .. " seconds.")
 
     elseif msg == "say" then
-        local group = GetCurrentGroup()
-        local content, moduleId = Dadabase.DatabaseManager:GetRandomContent("wipe", group or "party")
+        local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
         local message = prefix .. content
 
@@ -293,8 +292,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         if not IsInGuild() then
             print("You are not in a guild!")
         else
-            local group = GetCurrentGroup()
-            local content, moduleId = Dadabase.DatabaseManager:GetRandomContent("wipe", group or "party")
+            local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
             local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
             SendChatMessage(prefix .. content, "GUILD")
         end
