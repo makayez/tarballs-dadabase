@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Global enable/disable toggle in Settings tab to override all module settings
 - Statistics tracking showing content count and times told per module
 - Statistics now increment for manual commands (`/dadabase say`, `/dadabase guild`)
-- Sound effects with dropdown selection (17 different WoW sounds available)
+- Sound effects with dropdown selection (15 short, punchy sound effects)
 - Test button next to sound effect dropdown to preview selected sound
 - About tab with usage instructions, GitHub link, and thank you message
 - Tooltips on disabled controls explaining addon is globally disabled or module is disabled
@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Migration system for existing SavedVariables data
 
 ### Changed
+- Sound effects now only play when Test button is clicked (not on dropdown selection)
+- Replaced long sound effects with shorter ones suitable for raid announcements
 - About tab now appears first in the configuration panel (before Settings)
 - All tab buttons widened to 120-130px for better text display
 - Configuration panel height increased to 650px to prevent content overlap
