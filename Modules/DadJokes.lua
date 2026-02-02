@@ -1010,7 +1010,7 @@ local defaultJokes = {
     "Wife told me to take the spider out instead of killing it... We had some drinks, cool guy, wants to be a web developer.",
     "I really want to buy one of those supermarket checkout dividers, but the cashier keeps putting it back.",
     "What did one wall say to the other wall? I'll meet you at the corner!",
-    "I've been trying to come up with a dad joke about momentum . . . but I just can't seem to get it going.",
+    "I've been trying to come up with a dad joke about momentum... but I just can't seem to get it going.",
     "How do you follow Will Smith in the snow? You follow the fresh prints.",
     "Did you hear about the scientist who was lab partners with a pot of boiling water? He had a very esteemed colleague.",
     "What's a druid's favorite drink? Root beer",
