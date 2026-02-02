@@ -491,11 +491,26 @@ function Config:BuildModuleContent(container, moduleId)
 
     scrollFrame:SetScrollChild(editBox)
 
+    -- Save button and status (declare early so LoadContent can reference it)
+    local saveBtn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
+    saveBtn:SetSize(100, 25)
+    saveBtn:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 10, 30)
+    saveBtn:SetText("Save Changes")
+    saveBtn:Disable()
+
+    local statusLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    statusLabel:SetPoint("LEFT", saveBtn, "RIGHT", 10, 0)
+    statusLabel:SetText("")
+
+    -- Track original content for change detection
+    local originalText = ""
+
     -- Populate with current content
     local function LoadContent()
         local content = DB:GetEffectiveContent(moduleId)
         local text = table.concat(content, "\n")
         editBox:SetText(text)
+        originalText = text
 
         -- Calculate height based on content (roughly 14 pixels per line)
         local numLines = #content
@@ -505,19 +520,22 @@ function Config:BuildModuleContent(container, moduleId)
 
         editBox:SetCursorPosition(0)
         contentLabel:SetText("Content (" .. #content .. " items)")
+        saveBtn:Disable()
     end
 
     container.LoadContent = LoadContent
 
-    -- Save button and status
-    local saveBtn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    saveBtn:SetSize(100, 25)
-    saveBtn:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 10, 30)
-    saveBtn:SetText("Save Changes")
-
-    local statusLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    statusLabel:SetPoint("LEFT", saveBtn, "RIGHT", 10, 0)
-    statusLabel:SetText("")
+    -- Enable/disable save button based on text changes
+    editBox:SetScript("OnTextChanged", function(self, userInput)
+        if userInput then
+            local currentText = self:GetText()
+            if currentText ~= originalText then
+                saveBtn:Enable()
+            else
+                saveBtn:Disable()
+            end
+        end
+    end)
 
     saveBtn:SetScript("OnClick", function()
         local text = editBox:GetText()
@@ -534,9 +552,13 @@ function Config:BuildModuleContent(container, moduleId)
         -- Update the database
         DB:SetEffectiveContent(moduleId, newContent)
 
+        -- Update original text to match saved content
+        originalText = text
+
         -- Show feedback
         statusLabel:SetText("Saved! (" .. #newContent .. " items)")
         contentLabel:SetText("Content (" .. #newContent .. " items)")
+        saveBtn:Disable()
 
         -- Clear status after 3 seconds
         C_Timer.After(3, function()
