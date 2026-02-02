@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Global enable/disable toggle in Settings tab to override all module settings
+- Statistics tracking showing content count and times told per module
+- Sound effects with dropdown selection (9 different WoW sounds available)
+- About tab with usage instructions, GitHub link, and thank you message
+- Tooltips on disabled controls explaining addon is globally disabled
 - Multi-line text editor for content management (one item per line)
 - Save Changes button with visual feedback in configuration UI
 - Reset to Defaults button to clear all user customizations
@@ -19,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Migration system for existing SavedVariables data
 
 ### Changed
+- Module tab controls now gray out with tooltips when addon is globally disabled
 - Content storage system now tracks only user changes (additions/deletions) instead of full content arrays
 - Default content is now stored in addon code rather than SavedVariables
 - Configuration UI replaced scrollable list with individual delete buttons with a text editor
@@ -26,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README updated to reflect new change-tracking system
 
 ### Fixed
+- Personal death trigger now works when solo (not just in groups)
+- Personal death trigger no longer requires group checkboxes to be enabled
 - Content management now handles large datasets (1000+ items) efficiently
 - New default content in updates automatically appears without restoring deleted items
 - SavedVariables file size reduced significantly for users with default content
