@@ -81,7 +81,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Tooltip handlers reused instead of recreated to prevent memory leaks
 - Backward compatibility maintained for legacy functions
 
-## [0.3.0] - 2025-01-XX
+## [0.3.0] - 2026-02-01
 
 ### Added
 - Multiple content types (Dad Jokes, Demotivational, Guild Quotes)
