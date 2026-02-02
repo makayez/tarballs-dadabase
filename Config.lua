@@ -547,13 +547,29 @@ function Config:BuildModuleContent(container, moduleId)
     editBox:EnableMouse(true)
     editBox:EnableKeyboard(true)
     editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    editBox:SetScript("OnMouseDown", function(self) self:SetFocus() end)
-    editBox:SetScript("OnShow", function(self) self:SetEnabled(true) end)
-
-    -- Make sure scrollFrame doesn't block mouse events
-    scrollFrame:EnableMouse(true)
+    editBox:SetScript("OnMouseDown", function(self)
+        self:SetFocus()
+        return true
+    end)
+    editBox:SetScript("OnShow", function(self)
+        self:SetEnabled(true)
+        self:EnableMouse(true)
+        self:EnableKeyboard(true)
+    end)
 
     scrollFrame:SetScrollChild(editBox)
+
+    -- Add click handler to scrollFrame to pass focus to editBox
+    scrollFrame:EnableMouse(true)
+    scrollFrame:SetScript("OnMouseDown", function(self)
+        editBox:SetFocus()
+    end)
+
+    -- Add click handler to editorBorder too
+    editorBorder:EnableMouse(true)
+    editorBorder:SetScript("OnMouseDown", function(self)
+        editBox:SetFocus()
+    end)
 
     -- Save button and status (declare early so LoadContent can reference it)
     local saveBtn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
