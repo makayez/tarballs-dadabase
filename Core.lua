@@ -288,6 +288,14 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
             SendChatMessage(message, "SAY")
         end
 
+        -- Track statistics
+        if moduleId then
+            if not TarballsDadabaseDB.stats[moduleId] then
+                TarballsDadabaseDB.stats[moduleId] = 0
+            end
+            TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+        end
+
     elseif msg == "guild" then
         if not IsInGuild() then
             print("You are not in a guild!")
@@ -295,6 +303,14 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
             local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
             local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
             SendChatMessage(prefix .. content, "GUILD")
+
+            -- Track statistics
+            if moduleId then
+                if not TarballsDadabaseDB.stats[moduleId] then
+                    TarballsDadabaseDB.stats[moduleId] = 0
+                end
+                TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+            end
         end
 
     elseif msg == "status" then
