@@ -659,7 +659,7 @@ function Config:BuildModuleContent(container, moduleId)
 
     -- Store all controls that should be disabled when addon or module is disabled
     -- Note: enableCheckbox should always be enabled (even when global is off)
-    -- Note: editBox should remain enabled so users can add content before enabling module
+    -- Note: editBox should always remain enabled so users can add content before enabling module
     local moduleControls = {
         wipeCheckbox,
         deathCheckbox,
@@ -669,15 +669,14 @@ function Config:BuildModuleContent(container, moduleId)
         resetBtn
     }
 
-    local allControls = {
-        enableCheckbox,
+    -- Controls that get tooltip handlers (editBox excluded to prevent typing interference)
+    local controlsWithTooltips = {
         wipeCheckbox,
         deathCheckbox,
         raidCheckbox,
         partyCheckbox,
         saveBtn,
-        resetBtn,
-        editBox
+        resetBtn
     }
 
     -- Tooltip handlers (defined once to prevent memory leaks)
@@ -735,13 +734,11 @@ function Config:BuildModuleContent(container, moduleId)
             end
         end
 
-        -- Add/remove tooltip handlers for all controls (except enableCheckbox)
-        for _, control in ipairs(allControls) do
+        -- Add/remove tooltip handlers for controls (editBox excluded to allow typing)
+        for _, control in ipairs(controlsWithTooltips) do
             local desiredState = "none"
 
-            if control == enableCheckbox then
-                desiredState = "none"
-            elseif not globalEnabled then
+            if not globalEnabled then
                 desiredState = "global"
             elseif not moduleEnabled then
                 desiredState = "module"
