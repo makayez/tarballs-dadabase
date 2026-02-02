@@ -429,7 +429,7 @@ function Config:BuildModuleContent(container, moduleId)
     local warningText = warningFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     warningText:SetPoint("CENTER")
     warningText:SetTextColor(1, 0.3, 0.3)
-    warningText:SetText("⚠ Addon is globally disabled in Settings tab - this module will not trigger ⚠")
+    warningText:SetText("WARNING: Addon is globally disabled in Settings tab - this module will not trigger")
 
     -- Hide warning by default, will show if global disabled
     warningFrame:Hide()
