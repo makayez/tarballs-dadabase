@@ -10,15 +10,29 @@ World of Warcraft addon that automatically shares content (dad jokes, demotivati
   - Guild Quotes - Your guild's memorable moments
 - **Flexible Triggers:**
   - Party/Raid wipes
-  - Personal death
+  - Personal death (works solo or in groups)
 - **Group Targeting:**
   - Enable separately for raids and parties
+- **Dynamic Prefixes:**
+  - 100 randomized adjectives for variety
+  - Automatic grammar handling (a/an)
+- **Sound Effects:**
+  - 15 short, punchy sound effects
+  - Optional audio notification when content triggers
+- **Statistics Tracking:**
+  - Track how many times each module has been used
+  - View counts in Settings tab
 - **Full Content Management:**
+  - Multi-line text editor (one item per line)
   - Add/remove content for each type
   - Import new default content on updates
-- In-game configuration panel with tabs for each content type
+  - Smart Save button (only enabled when edited)
+- **Global Controls:**
+  - Master enable/disable toggle
+  - Controls gray out when disabled with helpful tooltips
+- In-game configuration panel with About, Settings, and content type tabs
 - Persistent settings across logins
-- Manual commands for guild/say chat
+- Manual commands for guild/say chat (ignore trigger/group settings)
 - Modular architecture for easy expansion
 
 ## Installation
@@ -45,28 +59,43 @@ World of Warcraft addon that automatically shares content (dad jokes, demotivati
 
 Access the configuration panel via `/dadabase` or through the WoW Interface Options under Addons.
 
+### About Tab
+- Overview of what the addon does
+- Instructions for adding custom content
+- GitHub repository link
+- Thank you message
+
 ### Settings Tab
-- View current version
-- Adjust global cooldown slider (0-60 seconds)
+- **Global Enable/Disable:** Master toggle that overrides all module settings
+- **Statistics:** View content counts and usage statistics for each module
+- **Global Cooldown:** Slider to adjust seconds between messages (0-60)
+  - Prevents messages if one was sent within the specified time
+- **Sound Effects:** Optional audio notification when content triggers
+  - 15 short, punchy sound effects to choose from
+  - Test button to preview selected sound
 
 ### Content Type Tabs (Dad Jokes, Demotivational, Guild Quotes)
 Each content type has its own tab with:
 
 **Enable/Disable:**
-- Master toggle for the content type
+- Module toggle (controls gray out when disabled)
+- Disabled modules won't trigger even if global is enabled
 
 **Triggers:**
 - Party/Raid wipes - Send content when the group wipes
-- Personal death - Send content when you die
+- Personal death - Send content when you die (solo or in groups)
 
 **Groups:**
 - Raids - Enable for raid groups
 - Parties - Enable for party groups
 
+**Note:** Manual commands (`/dadabase say`, `/dadabase guild`) ignore trigger and group settings and only respect module enabled state.
+
 **Content Management:**
 - Edit all content in a multi-line text editor
 - Add custom content (one per line)
 - Remove any content (delete the line)
+- Save Changes button (disabled until text is edited)
 - Reset to defaults button available
 
 ## Content Database
@@ -83,16 +112,34 @@ The addon uses a change-tracking system to manage content efficiently. Default c
 - Guild Quotes: Empty - populate with your guild's memorable quotes (disabled by default)
 
 **How It Works:**
-When a trigger event occurs (wipe or death), the addon:
-1. Checks which content types are enabled
-2. Filters by the current trigger type and group
-3. Combines all matching content into a pool
-4. Randomly selects one item to send
+
+**Automatic Triggers (wipes, deaths):**
+1. Checks if addon is globally enabled
+2. Checks which content types are enabled
+3. Filters by the current trigger type and group
+4. Combines all matching content into a pool
+5. Randomly selects one item to send
+6. Adds a randomized prefix with adjective
+7. Plays sound effect if enabled
+8. Increments usage statistics
+
+**Manual Commands (`/dadabase say`, `/dadabase guild`):**
+1. Checks if addon is globally enabled
+2. Checks which content types are enabled
+3. Ignores trigger and group settings
+4. Combines all enabled content into a pool
+5. Randomly selects one item to send
+6. Adds a randomized prefix with adjective
+7. Increments usage statistics
 
 ## Saved Variables
 
 Settings are stored in `WTF/Account/<account>/SavedVariables/TarballsDadabase.lua`:
+- `globalEnabled` - Master enable/disable toggle (default: true)
 - `cooldown` - Global seconds between messages (default: 10)
+- `soundEnabled` - Sound effects on/off (default: false)
+- `soundEffect` - Selected sound effect ID (default: LEVEL_UP)
+- `stats` - Usage statistics per module
 - `debug` - Debug mode toggle (default: false)
 - `modules` - Per-module settings:
   - `enabled` - Module enable/disable
