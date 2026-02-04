@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - **Critical:** SavedVariables declaration in TOC file (was TarballsDadabase, corrected to TarballsDadabaseDB) - settings and statistics now persist across restarts
 - **Critical:** Removed message splitting code that caused taint issues - content now limited to 205 chars to ensure prefix + content always fits in 255 char limit
+- **Critical:** Added message length validation before sending to prevent Lua errors if content exceeds 255 characters (handles legacy data or manually edited SavedVariables)
 - Removed dead code: 3 unused legacy functions (AddContent, RemoveContent, GetContent) - 43 lines removed
 - Removed orphaned death trigger logic from Database.lua after PLAYER_DEAD event was removed
 - Config panel toggle bug when switching between `/dadabase` command and Options menu (now uses IsVisible() instead of IsShown())

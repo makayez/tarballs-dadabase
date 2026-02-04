@@ -117,8 +117,14 @@ local function SendContent(content, group)
         return
     end
 
+    -- Validate message length
+    if #content > MAX_CHAT_MESSAGE_LENGTH then
+        DebugPrint("Message too long (" .. #content .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+        content = content:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+    end
+
     pendingMessage = true
-    DebugPrint("Sending content to " .. (group or "local"))
+    DebugPrint("Sending content to " .. (group or "local") .. " (" .. #content .. " chars)")
 
     -- Send message directly (no timer) to avoid taint issues
     if group == "raid" then
@@ -313,6 +319,12 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
         local message = prefix .. content
 
+        -- Validate message length
+        if #message > MAX_CHAT_MESSAGE_LENGTH then
+            print("Warning: Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+            message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+        end
+
         -- Send directly without timers to avoid taint
         if IsInRaid() then
             SendChatMessage(message, "RAID")
@@ -350,6 +362,12 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
 
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
         local message = prefix .. content
+
+        -- Validate message length
+        if #message > MAX_CHAT_MESSAGE_LENGTH then
+            print("Warning: Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+            message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+        end
 
         -- Send directly without timers to avoid taint
         SendChatMessage(message, "GUILD")
