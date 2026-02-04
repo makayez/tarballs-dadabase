@@ -6,15 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Changed
-- Maximum global cooldown increased from 60 seconds to 600 seconds (10 minutes)
-- Settings panel integration redesigned - Options > Addons > Tarball's Dadabase now shows a simple panel with a button to open the full configuration dialog
-
-### Fixed
-- Config panel toggle bug when switching between `/dadabase` command and Options menu (now uses IsVisible() instead of IsShown())
-- Tab button positioning now uses absolute positioning for consistent layout regardless of display method
-- Config panel no longer attempts to embed in Settings window, preventing button overflow and display issues
-
 ## [0.4.0] - 2026-02-03
 
 ### Added
@@ -36,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated instructions text to explicitly mention "Save Changes" button
 - Extracted sound options to SOUND_OPTIONS constant for easier maintenance
 - Tab button positioning now uses dynamic helper function instead of hard-coded offsets
+- Maximum global cooldown increased from 60 seconds to 600 seconds (10 minutes)
+- Settings panel integration redesigned - Options > Addons > Tarball's Dadabase now shows a simple panel with a button to open the full configuration dialog
+- Tab button positioning now uses absolute positioning for consistent layout regardless of display method
 
 ### Fixed
 - **Critical:** Taint issue causing "blocked from Blizzard UI action" error (removed C_Timer.After from single message sending)
@@ -44,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed dead code: 3 unused legacy functions (AddContent, RemoveContent, GetContent) - 43 lines removed
 - Removed orphaned death trigger logic from Database.lua after PLAYER_DEAD event was removed
 - Message splitting now accounts for prefix length in total message size calculation
+- Config panel toggle bug when switching between `/dadabase` command and Options menu (now uses IsVisible() instead of IsShown())
+- Config panel no longer attempts to embed in Settings window, preventing button overflow and display issues
 
 ### Technical
 - Message splitting with smart word-boundary detection (searches for spaces/punctuation within last 50 chars)
