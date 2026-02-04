@@ -33,7 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Critical:** SavedVariables declaration in TOC file (was TarballsDadabase, corrected to TarballsDadabaseDB) - settings and statistics now persist across restarts
-- **Critical:** Manual commands (`/dadabase say`, `/dadabase guild`) now properly split long messages across multiple messages instead of truncating
+- **Critical:** Taint issue with manual commands - `/dadabase say` and `/dadabase guild` now send single messages only (no splitting) to avoid "blocked from Blizzard UI action" errors
 - **Critical:** Taint issue causing "blocked from Blizzard UI action" error (removed C_Timer.After from single message sending)
 - **Critical:** Race condition in multi-message splits (now validates group still exists before sending delayed messages)
 - **Critical:** Message splitting edge cases (empty chunks, infinite loops, proper word-boundary detection)
@@ -43,12 +43,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Config panel toggle bug when switching between `/dadabase` command and Options menu (now uses IsVisible() instead of IsShown())
 - Config panel no longer attempts to embed in Settings window, preventing button overflow and display issues
 - Custom prefix controls now properly gray out when "Enable prefix" is toggled off
-- Content editor now allows entries up to 500 characters (previously 255) - long content is automatically split when sent
+- Content editor now allows entries up to 500 characters (previously 255) - long content is automatically split when sent via automatic triggers (wipes)
+- Manual commands now validate content exists and provide helpful error messages
 
 ### Technical
-- Unified SendMessage() function handles message splitting for all channel types (RAID, PARTY, SAY, GUILD)
+- SendMessage() function handles message splitting for automatic triggers (wipe events) with smart word-boundary detection
+- Manual commands send single messages directly without timers to avoid taint issues with protected functions
 - Message splitting with smart word-boundary detection (searches for spaces/punctuation within last 50 chars)
-- Channel validation in C_Timer callbacks prevents errors when player leaves group/guild during multi-message send
+- Channel validation in C_Timer callbacks prevents errors when player leaves group during multi-message send
 - Consolidated all sanitization logic into single DB:SanitizeText() function (DRY principle)
 - Trigger logic simplified: module enabled + group match = triggers (no longer checks triggers.wipe)
 - RefreshControls function reduced from 58 to 38 lines using SetControlState helper

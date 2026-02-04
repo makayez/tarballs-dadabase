@@ -416,26 +416,34 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         lastManualCommandTime = now
 
         local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
+        if not content or not moduleId then
+            print("No content available. Enable at least one module in /dadabase config.")
+            return
+        end
+
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
         local message = prefix .. content
 
-        -- Determine channel based on group status
-        local channel = "SAY"
-        if IsInRaid() then
-            channel = "RAID"
-        elseif IsInGroup() then
-            channel = "PARTY"
+        -- Truncate if too long (no splitting for manual commands to avoid taint)
+        if #message > MAX_CHAT_MESSAGE_LENGTH then
+            print("Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+            message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
         end
 
-        SendMessage(message, channel)
+        -- Send directly without timers to avoid taint
+        if IsInRaid() then
+            SendChatMessage(message, "RAID")
+        elseif IsInGroup() then
+            SendChatMessage(message, "PARTY")
+        else
+            SendChatMessage(message, "SAY")
+        end
 
         -- Track statistics
-        if moduleId then
-            if not TarballsDadabaseDB.stats[moduleId] then
-                TarballsDadabaseDB.stats[moduleId] = 0
-            end
-            TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+        if not TarballsDadabaseDB.stats[moduleId] then
+            TarballsDadabaseDB.stats[moduleId] = 0
         end
+        TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
 
     elseif msg == "guild" then
         if not IsInGuild() then
@@ -452,18 +460,28 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         lastManualCommandTime = now
 
         local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
+        if not content or not moduleId then
+            print("No content available. Enable at least one module in /dadabase config.")
+            return
+        end
+
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
         local message = prefix .. content
 
-        SendMessage(message, "GUILD")
+        -- Truncate if too long (no splitting for manual commands to avoid taint)
+        if #message > MAX_CHAT_MESSAGE_LENGTH then
+            print("Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+            message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+        end
+
+        -- Send directly without timers to avoid taint
+        SendChatMessage(message, "GUILD")
 
         -- Track statistics
-        if moduleId then
-            if not TarballsDadabaseDB.stats[moduleId] then
-                TarballsDadabaseDB.stats[moduleId] = 0
-            end
-            TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+        if not TarballsDadabaseDB.stats[moduleId] then
+            TarballsDadabaseDB.stats[moduleId] = 0
         end
+        TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
 
     elseif msg == "status" then
         local inInstance, instanceType = IsInInstance()
