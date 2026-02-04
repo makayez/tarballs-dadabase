@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-03
+
+### Added
+- Custom prefix support per module (enable/disable, custom text input with 50 character limit)
+- Automatic message splitting for long content (messages >255 chars split at word boundaries with 1.5s delay between chunks)
+- Visual divider separating auto-save settings from manual-save content editor
+- Content Editor section clearly labeled with explicit save instructions
+- Save Changes and Reset to Defaults buttons now contained within editor frame with divider line
+- Buttons disabled until text changes are detected (clearer UX for what requires saving)
+- Helper functions for dynamic tab positioning (CreateTabButton) and control state management (SetControlState)
+- Consolidated SanitizeText utility function for input sanitization
+
+### Changed
+- Simplified triggers UI by removing "Personal death" option (only wipe triggers remain)
+- Combined trigger and group sections into single "Trigger on wipes in:" section
+- Reduced randomized adjectives from 110 to 40 most fitting options
+- Renamed "Saved Variables (legacy)" section to "Global Settings" for clarity
+- Changed "Content" label to "Content Editor" to emphasize editor functionality
+- Updated instructions text to explicitly mention "Save Changes" button
+- Extracted sound options to SOUND_OPTIONS constant for easier maintenance
+- Tab button positioning now uses dynamic helper function instead of hard-coded offsets
+
+### Fixed
+- **Critical:** Taint issue causing "blocked from Blizzard UI action" error (removed C_Timer.After from single message sending)
+- **Critical:** Race condition in multi-message splits (now validates group still exists before sending delayed messages)
+- **Critical:** Message splitting edge cases (empty chunks, infinite loops, proper word-boundary detection)
+- Removed dead code: 3 unused legacy functions (AddContent, RemoveContent, GetContent) - 43 lines removed
+- Removed orphaned death trigger logic from Database.lua after PLAYER_DEAD event was removed
+- Message splitting now accounts for prefix length in total message size calculation
+
+### Technical
+- Message splitting with smart word-boundary detection (searches for spaces/punctuation within last 50 chars)
+- Group validation in C_Timer callbacks prevents errors when player leaves group during multi-message send
+- Consolidated all sanitization logic into single DB:SanitizeText() function (DRY principle)
+- Trigger logic simplified: module enabled + group match = triggers (no longer checks triggers.wipe)
+- RefreshControls function reduced from 58 to 38 lines using SetControlState helper
+- Added safety limits to message splitting (max 20 iterations, progress detection)
+- Removed SetModuleTrigger() function (dead code, never called)
+- Removed triggers from module defaultSettings (new installs don't need them)
+- Triggers field preserved in existing SavedVariables for backward compatibility but no longer used
+
 ## [0.3.0] - 2026-02-01
 
 ### Added

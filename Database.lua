@@ -12,6 +12,29 @@ DB.modules = {}
 DB.contentCache = {}
 
 -- ============================================================================
+-- Utility Functions
+-- ============================================================================
+
+-- Sanitize WoW formatting codes from user input
+function DB:SanitizeText(text)
+    if not text or text == "" then
+        return ""
+    end
+
+    text = tostring(text)
+
+    -- Remove WoW formatting codes
+    text = text:gsub("|c%x%x%x%x%x%x%x%x", "")  -- Remove color codes (8 hex digits)
+    text = text:gsub("|H.-|h.-|h", "")  -- Remove hyperlinks
+    text = text:gsub("|r", "")  -- Remove color resets
+    text = text:gsub("|T.-|t", "")  -- Remove textures
+    text = text:gsub("|K.-|k", "")  -- Remove encrypted text
+    text = text:gsub("|n", "")  -- Remove line breaks
+
+    return text:trim()
+end
+
+-- ============================================================================
 -- Module Registration
 -- ============================================================================
 
@@ -55,11 +78,13 @@ function DB:Initialize()
             -- First install - create module DB with defaults
             TarballsDadabaseDB.modules[moduleId] = {
                 enabled = module.defaultSettings.enabled or false,
-                triggers = module.defaultSettings.triggers or {},
                 groups = module.defaultSettings.groups or {},
                 userAdditions = {},
                 userDeletions = {},
-                dbVersion = module.dbVersion
+                dbVersion = module.dbVersion,
+                prefixEnabled = true,  -- Enable prefix by default
+                useCustomPrefix = false,  -- Use default prefix by default
+                customPrefix = ""  -- Empty custom prefix by default
             }
             moduleDB = TarballsDadabaseDB.modules[moduleId]
         else
@@ -102,12 +127,15 @@ function DB:Initialize()
             end
         end
 
-        -- Ensure all settings exist
-        if moduleDB.triggers == nil then moduleDB.triggers = {} end
+        -- Ensure all settings exist (including legacy fields for backward compatibility)
+        if moduleDB.triggers == nil then moduleDB.triggers = {} end  -- Legacy: preserved for old SavedVariables
         if moduleDB.groups == nil then moduleDB.groups = {} end
         if moduleDB.userAdditions == nil then moduleDB.userAdditions = {} end
         if moduleDB.userDeletions == nil then moduleDB.userDeletions = {} end
         if moduleDB.dbVersion == nil then moduleDB.dbVersion = 0 end
+        if moduleDB.prefixEnabled == nil then moduleDB.prefixEnabled = true end
+        if moduleDB.useCustomPrefix == nil then moduleDB.useCustomPrefix = false end
+        if moduleDB.customPrefix == nil then moduleDB.customPrefix = "" end
 
         -- Update version (new defaults will be automatically included via GetEffectiveContent)
         if moduleDB.dbVersion < module.dbVersion then
@@ -201,116 +229,68 @@ function DB:GetTotalContentCount()
 end
 
 function DB:GetContentPrefix(moduleId)
-    -- Random adjectives to inject into prefixes
+    -- Check if prefix is enabled for this module
+    local moduleDB = TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId]
+
+    if not moduleDB or not moduleDB.prefixEnabled then
+        return ""
+    end
+
+    -- Use custom prefix if enabled
+    if moduleDB.useCustomPrefix and moduleDB.customPrefix and moduleDB.customPrefix ~= "" then
+        -- Sanitize custom prefix
+        local prefix = self:SanitizeText(moduleDB.customPrefix)
+
+        -- Ensure prefix ends with a space
+        if prefix ~= "" and not prefix:match("%s$") then
+            prefix = prefix .. " "
+        end
+
+        return prefix
+    end
+
+    -- Random adjectives to inject into prefixes (40 most fitting)
     local adjectives = {
         "uplifting",
         "inspiring",
-        "satisfying",
         "heartwarming",
-        "gratifying",
         "enlightening",
         "encouraging",
-        "rewarding",
-        "fulfilling",
-        "refreshing",
-        "invigorating",
         "delightful",
-        "wonderful",
         "magnificent",
         "spectacular",
-        "amazing",
-        "breathtaking",
         "brilliant",
-        "captivating",
-        "charming",
-        "dazzling",
         "empowering",
-        "exceptional",
         "extraordinary",
-        "fabulous",
-        "glorious",
-        "incredible",
         "legendary",
-        "marvelous",
-        "motivating",
         "outstanding",
         "phenomenal",
-        "powerful",
         "remarkable",
-        "sensational",
-        "splendid",
-        "stirring",
-        "stunning",
-        "sublime",
-        "superb",
-        "tremendous",
         "triumphant",
-        "upbeat",
-        "vibrant",
         "awe-inspiring",
         "life-changing",
-        "thought-provoking",
-        "soul-stirring",
         "mind-blowing",
         "game-changing",
         "electrifying",
         "exhilarating",
         "mesmerizing",
         "enchanting",
-        "riveting",
         "spellbinding",
-        "enthralling",
-        "intriguing",
-        "mystifying",
-        "tantalizing",
-        "scintillating",
         "fascinating",
         "gripping",
         "compelling",
-        "engrossing",
-        "absorbing",
-        "hypnotic",
-        "magnetic",
-        "irresistible",
         "unforgettable",
         "timeless",
         "priceless",
-        "invaluable",
         "unparalleled",
-        "unrivaled",
-        "unmatched",
-        "unsurpassed",
-        "unbeatable",
         "supreme",
-        "divine",
         "transcendent",
-        "celestial",
-        "heavenly",
-        "angelic",
         "majestic",
-        "noble",
-        "regal",
-        "stately",
-        "dignified",
-        "prestigious",
-        "distinguished",
-        "illustrious",
-        "eminent",
-        "exalted",
-        "elevated",
-        "lofty",
-        "grandiose",
-        "monumental",
-        "colossal",
-        "titanic",
         "epic",
         "heroic",
-        "valiant",
-        "gallant",
         "bold",
         "daring",
-        "intrepid",
-        "fearless"
+        "intrepid"
     }
 
     -- Bounds checking - fallback if adjectives table is empty or corrupted
@@ -350,22 +330,12 @@ function DB:GetRandomContent(trigger, group, ignoreTriggers)
             local shouldInclude = false
 
             if ignoreTriggers then
-                -- For manual commands, ignore trigger/group settings
+                -- For manual commands, ignore group settings
                 shouldInclude = true
             else
-                -- Check if this module matches the trigger
-                local triggerMatch = moduleDB.triggers[trigger] == true
-
-                -- Check if this module matches the group
-                -- For solo players (group is nil), skip group requirement for death triggers
-                local groupMatch
-                if group == nil and trigger == "death" then
-                    groupMatch = true
-                else
-                    groupMatch = moduleDB.groups[group] == true
-                end
-
-                shouldInclude = triggerMatch and groupMatch
+                -- Check if this module matches the group (wipe trigger is implicit when module is enabled)
+                local groupMatch = moduleDB.groups[group] == true
+                shouldInclude = groupMatch
             end
 
             if shouldInclude then
@@ -409,15 +379,35 @@ function DB:SetModuleEnabled(moduleId, enabled)
     end
 end
 
-function DB:SetModuleTrigger(moduleId, trigger, enabled)
-    if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
-        TarballsDadabaseDB.modules[moduleId].triggers[trigger] = enabled
-    end
-end
-
 function DB:SetModuleGroup(moduleId, group, enabled)
     if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
         TarballsDadabaseDB.modules[moduleId].groups[group] = enabled
+    end
+end
+
+function DB:SetPrefixEnabled(moduleId, enabled)
+    if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
+        TarballsDadabaseDB.modules[moduleId].prefixEnabled = enabled
+    end
+end
+
+function DB:SetUseCustomPrefix(moduleId, enabled)
+    if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
+        TarballsDadabaseDB.modules[moduleId].useCustomPrefix = enabled
+    end
+end
+
+function DB:SetCustomPrefix(moduleId, prefix)
+    if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
+        -- Sanitize and validate prefix
+        prefix = self:SanitizeText(prefix or "")
+
+        -- Limit prefix length (50 characters max to leave room for content)
+        if #prefix > 50 then
+            prefix = prefix:sub(1, 50)
+        end
+
+        TarballsDadabaseDB.modules[moduleId].customPrefix = prefix
     end
 end
 
@@ -482,53 +472,4 @@ function DB:SetEffectiveContent(moduleId, newContent)
 
     -- Invalidate cache since content changed
     self.contentCache[moduleId] = nil
-end
-
--- Legacy function for backward compatibility
-function DB:AddContent(moduleId, content)
-    if TarballsDadabaseDB.modules[moduleId] then
-        table.insert(TarballsDadabaseDB.modules[moduleId].userAdditions, content)
-        -- Invalidate cache
-        self.contentCache[moduleId] = nil
-    end
-end
-
--- Legacy function for backward compatibility
-function DB:RemoveContent(moduleId, index)
-    local effective = self:GetEffectiveContent(moduleId)
-    if effective[index] then
-        local itemToRemove = effective[index]
-        local module = self.modules[moduleId]
-        local moduleDB = TarballsDadabaseDB.modules[moduleId]
-
-        -- Check if it's a default item
-        local isDefault = false
-        for _, defaultItem in ipairs(module.defaultContent) do
-            if defaultItem == itemToRemove then
-                isDefault = true
-                break
-            end
-        end
-
-        if isDefault then
-            -- Add to deletions
-            table.insert(moduleDB.userDeletions, itemToRemove)
-        else
-            -- Remove from additions
-            for i, item in ipairs(moduleDB.userAdditions) do
-                if item == itemToRemove then
-                    table.remove(moduleDB.userAdditions, i)
-                    break
-                end
-            end
-        end
-
-        -- Invalidate cache since content changed
-        self.contentCache[moduleId] = nil
-    end
-end
-
--- Legacy function for backward compatibility
-function DB:GetContent(moduleId)
-    return self:GetEffectiveContent(moduleId)
 end

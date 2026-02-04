@@ -2,11 +2,10 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.3.0"
+Dadabase.VERSION = "0.4.0"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
-local MESSAGE_SEND_DELAY = 1
 local MAX_CHAT_MESSAGE_LENGTH = 255
 
 -- ============================================================================
@@ -61,12 +60,12 @@ local pendingMessage = false
 local lastManualCommandTime = 0
 
 -- ============================================================================
--- Saved Variables (legacy)
+-- Saved Variables (Global Settings)
 -- ============================================================================
 
 TarballsDadabaseDB = TarballsDadabaseDB or {}
 
--- Legacy cooldown setting (now global, not per-module)
+-- Global cooldown setting (migrated from per-module in earlier versions)
 if TarballsDadabaseDB.cooldown == nil then
     TarballsDadabaseDB.cooldown = DEFAULT_COOLDOWN
 end
@@ -121,7 +120,105 @@ local function SendContent(content, group)
     pendingMessage = true
     DebugPrint("Sending content to " .. (group or "local"))
 
-    C_Timer.After(MESSAGE_SEND_DELAY, function()
+    -- Split message if it exceeds max length
+    if #content > MAX_CHAT_MESSAGE_LENGTH then
+        DebugPrint("Message too long (" .. #content .. " chars), splitting into multiple messages")
+
+        local messages = {}
+        local remainingText = content
+        local maxIterations = 20  -- Safety limit to prevent infinite loops
+
+        while #remainingText > 0 and #messages < maxIterations do
+            if #remainingText <= MAX_CHAT_MESSAGE_LENGTH then
+                -- Last chunk fits within limit
+                if remainingText:trim() ~= "" then
+                    table.insert(messages, remainingText:trim())
+                end
+                break
+            else
+                -- Find a good break point (space, period, comma)
+                local breakPoint = MAX_CHAT_MESSAGE_LENGTH
+                local searchStart = math.max(1, MAX_CHAT_MESSAGE_LENGTH - 50)
+
+                -- Look for a space, period, comma, or other punctuation near the limit
+                local lastSpace = remainingText:sub(searchStart, MAX_CHAT_MESSAGE_LENGTH):match(".*()[%s%.,%!%?;:]")
+                if lastSpace then
+                    breakPoint = searchStart + lastSpace - 1
+                else
+                    -- No punctuation found, try to break at any whitespace
+                    local anySpace = remainingText:sub(1, MAX_CHAT_MESSAGE_LENGTH):match(".*()%s")
+                    if anySpace then
+                        breakPoint = anySpace - 1
+                    else
+                        -- No whitespace at all, force break at limit (edge case for very long words)
+                        breakPoint = MAX_CHAT_MESSAGE_LENGTH
+                    end
+                end
+
+                -- Extract chunk and validate it's not empty
+                local chunk = remainingText:sub(1, breakPoint):trim()
+                if chunk ~= "" then
+                    table.insert(messages, chunk)
+                end
+
+                -- Move to next chunk
+                remainingText = remainingText:sub(breakPoint + 1):trim()
+
+                -- Safety check: if we're not making progress, force break
+                if breakPoint == 0 or #remainingText >= #content then
+                    DebugPrint("Message splitting stalled, forcing break")
+                    if remainingText:trim() ~= "" then
+                        table.insert(messages, remainingText:sub(1, MAX_CHAT_MESSAGE_LENGTH):trim())
+                    end
+                    break
+                end
+            end
+        end
+
+        -- Warn if we hit iteration limit
+        if #messages >= maxIterations then
+            DebugPrint("Warning: Message splitting hit max iterations, some content may be truncated")
+        end
+
+        -- Send first message immediately
+        if #messages > 0 then
+            if group == "raid" then
+                SendChatMessage(messages[1], "RAID")
+            elseif group == "party" then
+                SendChatMessage(messages[1], "PARTY")
+            else
+                print(messages[1])
+            end
+        end
+
+        -- Send remaining messages with delay
+        for i = 2, #messages do
+            local delay = (i - 1) * 1.5  -- 1.5 seconds between each message
+            C_Timer.After(delay, function()
+                -- Validate group still exists before sending
+                local currentGroup = GetCurrentGroup()
+                if currentGroup ~= group then
+                    DebugPrint("Group changed during message split, canceling remaining messages")
+                    return
+                end
+
+                if group == "raid" then
+                    SendChatMessage(messages[i], "RAID")
+                elseif group == "party" then
+                    SendChatMessage(messages[i], "PARTY")
+                else
+                    print(messages[i])
+                end
+            end)
+        end
+
+        -- Clear pending flag after all messages are scheduled
+        local totalDelay = (#messages - 1) * 1.5
+        C_Timer.After(totalDelay + 0.5, function()
+            pendingMessage = false
+        end)
+    else
+        -- Send message directly (no timer) to avoid taint issues
         if group == "raid" then
             SendChatMessage(content, "RAID")
         elseif group == "party" then
@@ -131,7 +228,7 @@ local function SendContent(content, group)
             print(content)
         end
         pendingMessage = false
-    end)
+    end
 end
 
 local function TriggerContent(triggerType)
@@ -156,8 +253,8 @@ local function TriggerContent(triggerType)
     -- Get current group
     local group = GetCurrentGroup()
 
-    -- For wipe triggers, require a group
-    if not group and triggerType ~= "death" then
+    -- Require a group for all automatic triggers
+    if not group then
         DebugPrint("  BLOCKED: Not in a group")
         return
     end
@@ -194,7 +291,6 @@ end
 
 frame:RegisterEvent("ENCOUNTER_START")
 frame:RegisterEvent("ENCOUNTER_END")
-frame:RegisterEvent("PLAYER_DEAD")
 frame:RegisterEvent("ADDON_LOADED")
 
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -254,9 +350,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
 
         encounterActive = false
 
-    elseif event == "PLAYER_DEAD" then
-        DebugPrint("=== PLAYER_DEAD ===")
-        TriggerContent("death")
     end
 end)
 

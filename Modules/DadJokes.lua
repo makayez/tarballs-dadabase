@@ -1137,10 +1137,6 @@ Dadabase.DatabaseManager:RegisterModule("dadjokes", {
     dbVersion = 1,
     defaultSettings = {
         enabled = true,
-        triggers = {
-            wipe = true,
-            death = false
-        },
         groups = {
             raid = true,
             party = true

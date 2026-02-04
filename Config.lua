@@ -21,6 +21,25 @@ local DROPDOWN_WIDTH = 180
 local DIVIDER_WIDTH = 640
 local STATUS_CLEAR_DELAY = 3
 
+-- Sound effect options
+local SOUND_OPTIONS = {
+    {text = "Level Up", value = SOUNDKIT.LEVEL_UP or 888},
+    {text = "Ready Check", value = SOUNDKIT.READY_CHECK or 8960},
+    {text = "Raid Warning", value = SOUNDKIT.RAID_WARNING or 8959},
+    {text = "Alarm Clock", value = SOUNDKIT.ALARM_CLOCK_WARNING_3 or 12867},
+    {text = "Message Alert", value = SOUNDKIT.UI_WORLDQUEST_COMPLETE or 73182},
+    {text = "Whisper Received", value = SOUNDKIT.IG_CHAT_EMOTE_BUTTON or 567},
+    {text = "Quest Complete", value = SOUNDKIT.UI_QUEST_COMPLETE or 878},
+    {text = "Achievement", value = SOUNDKIT.ACHIEVEMENT_MENU_OPEN or 3337},
+    {text = "Map Ping", value = SOUNDKIT.MAP_PING or 3175},
+    {text = "Loot Coin", value = SOUNDKIT.LOOT_MONEY_COINS or 120},
+    {text = "Auction Window", value = SOUNDKIT.AUCTION_WINDOW_OPEN or 5274},
+    {text = "UI Tick", value = SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857},
+    {text = "UI Error", value = SOUNDKIT.IG_MAINMENU_OPTION or 852},
+    {text = "UI Bell", value = SOUNDKIT.UI_ORDERHALL_TALENT_READY_TOAST or 73743},
+    {text = "Raid Boss Warning", value = SOUNDKIT.RAID_BOSS_EMOTE_WARNING or 44854}
+}
+
 -- Registered module config tabs
 Config.moduleTabs = {}
 
@@ -34,6 +53,27 @@ function Config:RegisterModuleTab(moduleId, config)
         name = config.name,
         buildContent = config.buildContent
     })
+end
+
+-- ============================================================================
+-- Helper Functions
+-- ============================================================================
+
+-- Helper function to create and position tab buttons dynamically
+local function CreateTabButton(panel, text, tabButtons, isSmall)
+    local tabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local width = isSmall and TAB_BUTTON_WIDTH_SMALL or TAB_BUTTON_WIDTH_LARGE
+    tabBtn:SetSize(width, TAB_BUTTON_HEIGHT)
+
+    -- Position based on previous tab
+    if #tabButtons == 0 then
+        tabBtn:SetPoint("TOPLEFT", 20, -35)
+    else
+        tabBtn:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 5, 0)
+    end
+
+    tabBtn:SetText(text)
+    return tabBtn
 end
 
 -- ============================================================================
@@ -77,10 +117,7 @@ local function CreateConfigPanel()
     end
 
     -- About Tab (first tab)
-    local aboutTabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    aboutTabBtn:SetSize(TAB_BUTTON_WIDTH_SMALL, TAB_BUTTON_HEIGHT)
-    aboutTabBtn:SetPoint("TOPLEFT", 20, -35)
-    aboutTabBtn:SetText("About")
+    local aboutTabBtn = CreateTabButton(panel, "About", tabButtons, true)
     aboutTabBtn:SetScript("OnClick", function() ShowTab(1) end)
     table.insert(tabButtons, aboutTabBtn)
 
@@ -104,7 +141,7 @@ local function CreateConfigPanel()
     aboutDesc:SetSpacing(3)
     aboutDesc:SetText(
         "A World of Warcraft addon that shares uplifting dad jokes, motivational quotes, " ..
-        "and memorable guild sayings when your raid wipes or when you experience a personal death.\n\n" ..
+        "and memorable guild sayings when your raid wipes.\n\n" ..
         "Perfect for lightening the mood after a difficult encounter!"
     )
     aboutYOffset = aboutYOffset - 100
@@ -158,10 +195,7 @@ local function CreateConfigPanel()
     )
 
     -- Settings Tab (second tab)
-    local settingsTabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    settingsTabBtn:SetSize(TAB_BUTTON_WIDTH_SMALL, TAB_BUTTON_HEIGHT)
-    settingsTabBtn:SetPoint("LEFT", aboutTabBtn, "RIGHT", 5, 0)
-    settingsTabBtn:SetText("Settings")
+    local settingsTabBtn = CreateTabButton(panel, "Settings", tabButtons, true)
     settingsTabBtn:SetScript("OnClick", function() ShowTab(2) end)
     table.insert(tabButtons, settingsTabBtn)
 
@@ -316,27 +350,9 @@ local function CreateConfigPanel()
     local soundDropdown = CreateFrame("Frame", "TarballsDadabaseSoundDropdown", settingsTab, "UIDropDownMenuTemplate")
     soundDropdown:SetPoint("TOPLEFT", 110, yOffset + 5)
 
-    local soundOptions = {
-        {text = "Level Up", value = SOUNDKIT.LEVEL_UP or 888},
-        {text = "Ready Check", value = SOUNDKIT.READY_CHECK or 8960},
-        {text = "Raid Warning", value = SOUNDKIT.RAID_WARNING or 8959},
-        {text = "Alarm Clock", value = SOUNDKIT.ALARM_CLOCK_WARNING_3 or 12867},
-        {text = "Message Alert", value = SOUNDKIT.UI_WORLDQUEST_COMPLETE or 73182},
-        {text = "Whisper Received", value = SOUNDKIT.IG_CHAT_EMOTE_BUTTON or 567},
-        {text = "Quest Complete", value = SOUNDKIT.UI_QUEST_COMPLETE or 878},
-        {text = "Achievement", value = SOUNDKIT.ACHIEVEMENT_MENU_OPEN or 3337},
-        {text = "Map Ping", value = SOUNDKIT.MAP_PING or 3175},
-        {text = "Loot Coin", value = SOUNDKIT.LOOT_MONEY_COINS or 120},
-        {text = "Auction Window", value = SOUNDKIT.AUCTION_WINDOW_OPEN or 5274},
-        {text = "UI Tick", value = SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857},
-        {text = "UI Error", value = SOUNDKIT.IG_MAINMENU_OPTION or 852},
-        {text = "UI Bell", value = SOUNDKIT.UI_ORDERHALL_TALENT_READY_TOAST or 73743},
-        {text = "Raid Boss Warning", value = SOUNDKIT.RAID_BOSS_EMOTE_WARNING or 44854}
-    }
-
     UIDropDownMenu_SetWidth(soundDropdown, DROPDOWN_WIDTH)
     UIDropDownMenu_Initialize(soundDropdown, function(self, level)
-        for _, option in ipairs(soundOptions) do
+        for _, option in ipairs(SOUND_OPTIONS) do
             local info = UIDropDownMenu_CreateInfo()
             info.text = option.text
             info.value = option.value
@@ -351,7 +367,7 @@ local function CreateConfigPanel()
 
     -- Set initial dropdown text
     local currentSound = "Level Up"
-    for _, option in ipairs(soundOptions) do
+    for _, option in ipairs(SOUND_OPTIONS) do
         if option.value == TarballsDadabaseDB.soundEffect then
             currentSound = option.text
             break
@@ -373,11 +389,7 @@ local function CreateConfigPanel()
 
     -- Module Tabs
     for _, moduleTab in ipairs(Config.moduleTabs) do
-        local tabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        tabBtn:SetSize(TAB_BUTTON_WIDTH_LARGE, TAB_BUTTON_HEIGHT)
-        tabBtn:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 5, 0)
-
-        tabBtn:SetText(moduleTab.name)
+        local tabBtn = CreateTabButton(panel, moduleTab.name, tabButtons, false)
         local tabIndex = #tabs + 1
         tabBtn:SetScript("OnClick", function() ShowTab(tabIndex) end)
         table.insert(tabButtons, tabBtn)
@@ -446,31 +458,15 @@ function Config:BuildModuleContent(container, moduleId)
 
     yOffset = yOffset - 40
 
-    -- Triggers section (left side)
-    local triggersLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    triggersLabel:SetPoint("TOPLEFT", 10, yOffset)
-    triggersLabel:SetText("Triggers:")
-
-    -- Groups section (right side)
+    -- Groups section (triggers on wipes when enabled)
     local groupsLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    groupsLabel:SetPoint("TOPLEFT", 340, yOffset)
-    groupsLabel:SetText("Enabled for:")
+    groupsLabel:SetPoint("TOPLEFT", 10, yOffset)
+    groupsLabel:SetText("Trigger on wipes in:")
     yOffset = yOffset - 30
 
-    -- Wipe trigger
-    local wipeCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    wipeCheckbox:SetPoint("TOPLEFT", 20, yOffset)
-    wipeCheckbox.text = wipeCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wipeCheckbox.text:SetPoint("LEFT", wipeCheckbox, "RIGHT", 5, 0)
-    wipeCheckbox.text:SetText("Party/Raid wipes")
-    wipeCheckbox:SetChecked(moduleDB.triggers.wipe == true)
-    wipeCheckbox:SetScript("OnClick", function(self)
-        DB:SetModuleTrigger(moduleId, "wipe", self:GetChecked())
-    end)
-
-    -- Raid group (right side, same row)
+    -- Raid group
     local raidCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    raidCheckbox:SetPoint("TOPLEFT", 350, yOffset)
+    raidCheckbox:SetPoint("TOPLEFT", 20, yOffset)
     raidCheckbox.text = raidCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     raidCheckbox.text:SetPoint("LEFT", raidCheckbox, "RIGHT", 5, 0)
     raidCheckbox.text:SetText("Raids")
@@ -478,22 +474,10 @@ function Config:BuildModuleContent(container, moduleId)
     raidCheckbox:SetScript("OnClick", function(self)
         DB:SetModuleGroup(moduleId, "raid", self:GetChecked())
     end)
-    yOffset = yOffset - 30
 
-    -- Death trigger
-    local deathCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    deathCheckbox:SetPoint("TOPLEFT", 20, yOffset)
-    deathCheckbox.text = deathCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    deathCheckbox.text:SetPoint("LEFT", deathCheckbox, "RIGHT", 5, 0)
-    deathCheckbox.text:SetText("Personal death")
-    deathCheckbox:SetChecked(moduleDB.triggers.death == true)
-    deathCheckbox:SetScript("OnClick", function(self)
-        DB:SetModuleTrigger(moduleId, "death", self:GetChecked())
-    end)
-
-    -- Party group (right side, same row)
+    -- Party group (same row, to the right)
     local partyCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    partyCheckbox:SetPoint("TOPLEFT", 350, yOffset)
+    partyCheckbox:SetPoint("TOPLEFT", 150, yOffset)
     partyCheckbox.text = partyCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     partyCheckbox.text:SetPoint("LEFT", partyCheckbox, "RIGHT", 5, 0)
     partyCheckbox.text:SetText("Parties")
@@ -503,11 +487,74 @@ function Config:BuildModuleContent(container, moduleId)
     end)
     yOffset = yOffset - 40
 
-    -- Content management section
+    -- Prefix configuration section
+    local prefixLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    prefixLabel:SetPoint("TOPLEFT", 10, yOffset)
+    prefixLabel:SetText("Message Prefix:")
+    yOffset = yOffset - 30
+
+    -- Enable prefix checkbox
+    local prefixCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
+    prefixCheckbox:SetPoint("TOPLEFT", 20, yOffset)
+    prefixCheckbox.text = prefixCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    prefixCheckbox.text:SetPoint("LEFT", prefixCheckbox, "RIGHT", 5, 0)
+    prefixCheckbox.text:SetText("Enable prefix")
+    prefixCheckbox:SetChecked(moduleDB.prefixEnabled == true)
+    prefixCheckbox:SetScript("OnClick", function(self)
+        DB:SetPrefixEnabled(moduleId, self:GetChecked())
+    end)
+    yOffset = yOffset - 30
+
+    -- Use custom prefix checkbox
+    local customPrefixCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
+    customPrefixCheckbox:SetPoint("TOPLEFT", 20, yOffset)
+    customPrefixCheckbox.text = customPrefixCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    customPrefixCheckbox.text:SetPoint("LEFT", customPrefixCheckbox, "RIGHT", 5, 0)
+    customPrefixCheckbox.text:SetText("Use custom prefix:")
+    customPrefixCheckbox:SetChecked(moduleDB.useCustomPrefix == true)
+    customPrefixCheckbox:SetScript("OnClick", function(self)
+        DB:SetUseCustomPrefix(moduleId, self:GetChecked())
+    end)
+    yOffset = yOffset - 30
+
+    -- Custom prefix input
+    local prefixInput = CreateFrame("EditBox", nil, container, "InputBoxTemplate")
+    prefixInput:SetPoint("TOPLEFT", 40, yOffset)
+    prefixInput:SetSize(500, 20)
+    prefixInput:SetAutoFocus(false)
+    prefixInput:SetMaxLetters(50)
+    prefixInput:SetText(moduleDB.customPrefix or "")
+    prefixInput:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        DB:SetCustomPrefix(moduleId, self:GetText())
+    end)
+    prefixInput:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+    end)
+    prefixInput:SetScript("OnEditFocusLost", function(self)
+        DB:SetCustomPrefix(moduleId, self:GetText())
+    end)
+
+    -- Prefix help text
+    local prefixHelp = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    prefixHelp:SetPoint("TOPLEFT", 40, yOffset - 20)
+    prefixHelp:SetPoint("TOPRIGHT", -10, yOffset - 20)
+    prefixHelp:SetJustifyH("LEFT")
+    prefixHelp:SetText("Custom prefix will be added before each message (max 50 characters). Press Enter to save.")
+    yOffset = yOffset - 65
+
+    -- Divider between auto-save settings and manual-save editor
+    local editorDivider = container:CreateTexture(nil, "ARTWORK")
+    editorDivider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+    editorDivider:SetSize(DIVIDER_WIDTH, 2)
+    editorDivider:SetPoint("TOPLEFT", 10, yOffset)
+    yOffset = yOffset - 20
+
+    -- Content management section (requires Save button)
     local effectiveContent = DB:GetEffectiveContent(moduleId)
     local contentLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     contentLabel:SetPoint("TOPLEFT", 10, yOffset)
-    contentLabel:SetText("Content (" .. #effectiveContent .. " items)")
+    contentLabel:SetText("Content Editor (" .. #effectiveContent .. " items)")
     yOffset = yOffset - 30
 
     -- Instructions
@@ -515,13 +562,13 @@ function Config:BuildModuleContent(container, moduleId)
     instructionsLabel:SetPoint("TOPLEFT", 10, yOffset)
     instructionsLabel:SetPoint("TOPRIGHT", -10, yOffset)
     instructionsLabel:SetJustifyH("LEFT")
-    instructionsLabel:SetText("Edit the content below (one item per line). Delete lines to remove items, add lines to create new ones.")
+    instructionsLabel:SetText("Edit the content below (one item per line). Click 'Save Changes' to apply your edits.")
     yOffset = yOffset - 25
 
-    -- Multi-line text editor with border
+    -- Multi-line text editor with border (includes buttons at bottom)
     local editorBorder = CreateFrame("Frame", nil, container, "BackdropTemplate")
     editorBorder:SetPoint("TOPLEFT", 5, yOffset)
-    editorBorder:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -5, 65)
+    editorBorder:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -5, 20)
     editorBorder:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
@@ -535,7 +582,7 @@ function Config:BuildModuleContent(container, moduleId)
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, editorBorder, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", 10, -10)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -30, 45)  -- Leave room for buttons at bottom
 
     local editBox = CreateFrame("EditBox", nil, scrollFrame)
     editBox:SetMultiLine(true)
@@ -561,16 +608,30 @@ function Config:BuildModuleContent(container, moduleId)
         editBox:SetFocus()
     end)
 
-    -- Save button and status (declare early so LoadContent can reference it)
-    local saveBtn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
+    -- Divider line between editor and button bar
+    local buttonDivider = editorBorder:CreateTexture(nil, "ARTWORK")
+    buttonDivider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
+    buttonDivider:SetHeight(1)
+    buttonDivider:SetPoint("BOTTOMLEFT", editorBorder, "BOTTOMLEFT", 10, 40)
+    buttonDivider:SetPoint("BOTTOMRIGHT", editorBorder, "BOTTOMRIGHT", -10, 40)
+
+    -- Button bar inside editor frame (visually groups buttons with editor)
+    local saveBtn = CreateFrame("Button", nil, editorBorder, "UIPanelButtonTemplate")
     saveBtn:SetSize(100, 25)
-    saveBtn:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 10, 30)
+    saveBtn:SetPoint("BOTTOMLEFT", editorBorder, "BOTTOMLEFT", 10, 10)
     saveBtn:SetText("Save Changes")
     saveBtn:Disable()
 
-    local statusLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    local statusLabel = editorBorder:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     statusLabel:SetPoint("LEFT", saveBtn, "RIGHT", 10, 0)
     statusLabel:SetText("")
+
+    -- Reset button (create early so LoadContent can reference it)
+    local resetBtn = CreateFrame("Button", nil, editorBorder, "UIPanelButtonTemplate")
+    resetBtn:SetSize(120, 25)
+    resetBtn:SetPoint("BOTTOMRIGHT", editorBorder, "BOTTOMRIGHT", -10, 10)
+    resetBtn:SetText("Reset to Defaults")
+    resetBtn:Disable()
 
     -- Track original content for change detection
     local originalText = ""
@@ -588,20 +649,23 @@ function Config:BuildModuleContent(container, moduleId)
         editBox:SetHeight(calculatedHeight)
 
         editBox:SetCursorPosition(0)
-        contentLabel:SetText("Content (" .. #content .. " items)")
+        contentLabel:SetText("Content Editor (" .. #content .. " items)")
         saveBtn:Disable()
+        resetBtn:Disable()
     end
 
     container.LoadContent = LoadContent
 
-    -- Enable/disable save button based on text changes
+    -- Enable/disable buttons based on text changes
     editBox:SetScript("OnTextChanged", function(self, userInput)
         if userInput then
             local currentText = self:GetText()
             if currentText ~= originalText then
                 saveBtn:Enable()
+                resetBtn:Enable()
             else
                 saveBtn:Disable()
+                resetBtn:Disable()
             end
         end
     end)
@@ -620,13 +684,7 @@ function Config:BuildModuleContent(container, moduleId)
                     skippedLines = skippedLines + 1
                 else
                     -- Sanitize input - remove WoW formatting codes
-                    line = line:gsub("|c%x%x%x%x%x%x%x%x", "")  -- Remove color codes (8 hex digits)
-                    line = line:gsub("|H.-|h.-|h", "")  -- Remove hyperlinks (more precise)
-                    line = line:gsub("|r", "")  -- Remove color resets
-                    line = line:gsub("|T.-|t", "")  -- Remove textures
-                    line = line:gsub("|K.-|k", "")  -- Remove encrypted text
-                    line = line:gsub("|n", "")  -- Remove line breaks
-                    line = line:trim()  -- Final trim after sanitization
+                    line = DB:SanitizeText(line)
                     if line ~= "" then
                         table.insert(newContent, line)
                     end
@@ -646,8 +704,9 @@ function Config:BuildModuleContent(container, moduleId)
             message = message .. " (" .. skippedLines .. " lines too long, skipped)"
         end
         statusLabel:SetText(message)
-        contentLabel:SetText("Content (" .. #newContent .. " items)")
+        contentLabel:SetText("Content Editor (" .. #newContent .. " items)")
         saveBtn:Disable()
+        resetBtn:Disable()
 
         -- Clear status after 3 seconds
         C_Timer.After(STATUS_CLEAR_DELAY, function()
@@ -655,11 +714,7 @@ function Config:BuildModuleContent(container, moduleId)
         end)
     end)
 
-    -- Reset button
-    local resetBtn = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    resetBtn:SetSize(120, 25)
-    resetBtn:SetPoint("LEFT", saveBtn, "RIGHT", 120, 0)
-    resetBtn:SetText("Reset to Defaults")
+    -- Reset button click handler
     resetBtn:SetScript("OnClick", function()
         -- Clear all user changes
         moduleDB.userAdditions = {}
@@ -675,20 +730,21 @@ function Config:BuildModuleContent(container, moduleId)
     -- Note: enableCheckbox should always be enabled (even when global is off)
     -- Note: editBox should always remain enabled so users can add content before enabling module
     local moduleControls = {
-        wipeCheckbox,
-        deathCheckbox,
         raidCheckbox,
         partyCheckbox,
+        prefixCheckbox,
+        customPrefixCheckbox,
+        prefixInput,
         saveBtn,
         resetBtn
     }
 
-    -- Controls that get tooltip handlers (editBox excluded to prevent typing interference)
+    -- Controls that get tooltip handlers (editBox and prefixInput excluded to prevent typing interference)
     local controlsWithTooltips = {
-        wipeCheckbox,
-        deathCheckbox,
         raidCheckbox,
         partyCheckbox,
+        prefixCheckbox,
+        customPrefixCheckbox,
         saveBtn,
         resetBtn
     }
@@ -715,6 +771,37 @@ function Config:BuildModuleContent(container, moduleId)
     -- Track tooltip state to prevent recreating handlers
     local tooltipStates = {}
 
+    -- Helper function to set control state (enabled/disabled, colors, tooltips)
+    local function SetControlState(control, enabled, tooltipType)
+        -- Set enabled/disabled state and colors
+        if enabled then
+            control:Enable()
+            if control.text then
+                control.text:SetTextColor(1, 1, 1)
+            end
+        else
+            control:Disable()
+            if control.text then
+                control.text:SetTextColor(0.5, 0.5, 0.5)
+            end
+        end
+
+        -- Set tooltip handlers if specified (and state changed)
+        if tooltipType and tooltipStates[control] ~= tooltipType then
+            if tooltipType == "global" then
+                control:SetScript("OnEnter", ShowGlobalDisabledTooltip)
+                control:SetScript("OnLeave", HideTooltip)
+            elseif tooltipType == "module" then
+                control:SetScript("OnEnter", ShowModuleDisabledTooltip)
+                control:SetScript("OnLeave", HideTooltip)
+            elseif tooltipType == "none" then
+                control:SetScript("OnEnter", nil)
+                control:SetScript("OnLeave", nil)
+            end
+            tooltipStates[control] = tooltipType
+        end
+    end
+
     -- Function to refresh control states based on global and module enabled
     local function RefreshControls()
         local globalEnabled = TarballsDadabaseDB.globalEnabled
@@ -728,51 +815,25 @@ function Config:BuildModuleContent(container, moduleId)
         end
 
         -- Enable checkbox is always enabled (allows configuration when global is disabled)
-        enableCheckbox:Enable()
-        if enableCheckbox.text then
-            enableCheckbox.text:SetTextColor(1, 1, 1)
+        SetControlState(enableCheckbox, true, nil)
+
+        -- Determine tooltip type for disabled controls
+        local tooltipType = "none"
+        if not globalEnabled then
+            tooltipType = "global"
+        elseif not moduleEnabled then
+            tooltipType = "module"
         end
 
         -- Handle other module controls - disabled by either global or module setting
-        -- Note: editBox is never in moduleControls, so it stays enabled always
+        local controlsEnabled = globalEnabled and moduleEnabled
         for _, control in ipairs(moduleControls) do
-            if globalEnabled and moduleEnabled then
-                control:Enable()
-                if control.text then
-                    control.text:SetTextColor(1, 1, 1)
-                end
-            else
-                control:Disable()
-                if control.text then
-                    control.text:SetTextColor(0.5, 0.5, 0.5)
-                end
-            end
+            SetControlState(control, controlsEnabled, nil)
         end
 
-        -- Add/remove tooltip handlers for controls (editBox excluded to allow typing)
+        -- Update tooltips for controls with tooltip handlers
         for _, control in ipairs(controlsWithTooltips) do
-            local desiredState = "none"
-
-            if not globalEnabled then
-                desiredState = "global"
-            elseif not moduleEnabled then
-                desiredState = "module"
-            end
-
-            -- Only update handlers if state changed
-            if tooltipStates[control] ~= desiredState then
-                if desiredState == "global" then
-                    control:SetScript("OnEnter", ShowGlobalDisabledTooltip)
-                    control:SetScript("OnLeave", HideTooltip)
-                elseif desiredState == "module" then
-                    control:SetScript("OnEnter", ShowModuleDisabledTooltip)
-                    control:SetScript("OnLeave", HideTooltip)
-                else
-                    control:SetScript("OnEnter", nil)
-                    control:SetScript("OnLeave", nil)
-                end
-                tooltipStates[control] = desiredState
-            end
+            SetControlState(control, controlsEnabled, tooltipType)
         end
     end
 

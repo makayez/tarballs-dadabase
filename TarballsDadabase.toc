@@ -2,8 +2,8 @@
 ## Title: Tarball's Dadabase
 ## Notes: Dispenses dad jokes upon group wipes
 ## Author: Tarball-Whisperwind [A]
-## Version: 0.3.0
-## SavedVariables: TarballsDadabaseDB
+## Version: 0.4.0
+## SavedVariables: TarballsDadabase
 
 Database.lua
 Core.lua

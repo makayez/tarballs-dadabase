@@ -8,13 +8,14 @@ World of Warcraft addon that automatically shares content (dad jokes, demotivati
   - Dad Jokes - Classic groaners and puns
   - Demotivational Sayings - For when things go wrong
   - Guild Quotes - Your guild's memorable moments
-- **Flexible Triggers:**
+- **Automatic Triggers:**
   - Party/Raid wipes
-  - Personal death (works solo or in groups)
 - **Group Targeting:**
   - Enable separately for raids and parties
-- **Dynamic Prefixes:**
-  - 100 randomized adjectives for variety
+- **Customizable Prefixes:**
+  - Enable/disable prefixes per module
+  - Default prefixes with 40 randomized adjectives for variety
+  - Custom prefix support (up to 50 characters)
   - Automatic grammar handling (a/an)
 - **Sound Effects:**
   - 15 short, punchy sound effects
@@ -26,7 +27,10 @@ World of Warcraft addon that automatically shares content (dad jokes, demotivati
   - Multi-line text editor (one item per line)
   - Add/remove content for each type
   - Import new default content on updates
-  - Smart Save button (only enabled when edited)
+  - Smart Save and Reset buttons (only enabled when text is edited)
+  - Buttons visually contained within editor frame for clarity
+  - Automatic message splitting for content over 255 characters
+  - Smart word-boundary detection prevents mid-word splits
 - **Global Controls:**
   - Master enable/disable toggle
   - Controls gray out when disabled with helpful tooltips
@@ -86,22 +90,29 @@ Each content type has its own tab with:
 - Other controls gray out when disabled
 - Disabled modules won't trigger even if global is enabled
 
-**Triggers:**
-- Party/Raid wipes - Send content when the group wipes
-- Personal death - Send content when you die (solo or in groups)
-
-**Groups:**
+**Trigger on wipes in:**
 - Raids - Enable for raid groups
 - Parties - Enable for party groups
 
+Note: Content automatically triggers on party/raid wipes when the module is enabled and at least one group type is selected.
+
+**Message Prefix:**
+- Enable prefix - Toggle prefix on/off
+- Use custom prefix - Use your own custom text instead of default
+- Custom prefix input - Enter up to 50 characters (press Enter to save)
+
+Default prefixes use randomized adjectives like "And now, for an inspiring dad joke:" while custom prefixes let you personalize the message format.
+
 **Note:** Manual commands (`/dadabase say`, `/dadabase guild`) ignore trigger and group settings and only respect module enabled state.
 
-**Content Management:**
-- Edit all content in a multi-line text editor
-- Add custom content (one per line)
-- Remove any content (delete the line)
-- Save Changes button (disabled until text is edited)
-- Reset to defaults button available
+**Content Editor:**
+A visual divider separates auto-saving settings (above) from manual-save content (below).
+
+- Edit all content in a multi-line text editor (one item per line)
+- Add custom content or remove any lines
+- Save Changes and Reset to Defaults buttons (disabled until text is edited)
+- Buttons are contained within the editor frame with a divider for visual clarity
+- Long content (over 255 characters) automatically splits across multiple messages with smart word-boundary detection
 
 ## Content Database
 
@@ -118,15 +129,16 @@ The addon uses a change-tracking system to manage content efficiently. Default c
 
 **How It Works:**
 
-**Automatic Triggers (wipes, deaths):**
+**Automatic Triggers (wipes):**
 1. Checks if addon is globally enabled
 2. Checks which content types are enabled
-3. Filters by the current trigger type and group
+3. Filters by the current group type (raid/party)
 4. Combines all matching content into a pool
 5. Randomly selects one item to send
-6. Adds a randomized prefix with adjective
-7. Plays sound effect if enabled
-8. Increments usage statistics
+6. Adds prefix (default with random adjective or custom)
+7. Splits message if over 255 characters (1.5s delay between chunks)
+8. Plays sound effect if enabled
+9. Increments usage statistics
 
 **Manual Commands (`/dadabase say`, `/dadabase guild`):**
 1. Checks if addon is globally enabled
@@ -134,8 +146,9 @@ The addon uses a change-tracking system to manage content efficiently. Default c
 3. Ignores trigger and group settings
 4. Combines all enabled content into a pool
 5. Randomly selects one item to send
-6. Adds a randomized prefix with adjective
-7. Increments usage statistics
+6. Adds prefix (default with random adjective or custom)
+7. Splits message if over 255 characters (1.5s delay between chunks)
+8. Increments usage statistics
 
 **Note:** Manual commands have a 3-second rate limit to prevent spam.
 
@@ -165,8 +178,11 @@ Settings are stored in `WTF/Account/<account>/SavedVariables/TarballsDadabase.lu
 - `debug` - Debug mode toggle (default: false)
 - `modules` - Per-module settings:
   - `enabled` - Module enable/disable
-  - `triggers` - Which triggers are active (wipe, death)
+  - `triggers` - (Legacy) Preserved for backward compatibility, no longer used
   - `groups` - Which groups are active (raid, party)
+  - `prefixEnabled` - Enable/disable prefix (default: true)
+  - `useCustomPrefix` - Use custom prefix instead of default (default: false)
+  - `customPrefix` - Custom prefix text (max 50 characters)
   - `userAdditions` - Custom content items you've added
   - `userDeletions` - Default items you've removed
   - `dbVersion` - Database version for tracking updates
@@ -185,4 +201,4 @@ New content types can be easily added by creating a new module file.
 
 ## Version
 
-Current version: 0.3.0
+Current version: 0.4.0

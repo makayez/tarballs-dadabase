@@ -80,10 +80,6 @@ Dadabase.DatabaseManager:RegisterModule("demotivational", {
     dbVersion = 1,
     defaultSettings = {
         enabled = false,
-        triggers = {
-            wipe = false,
-            death = false
-        },
         groups = {
             raid = false,
             party = false
