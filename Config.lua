@@ -65,12 +65,14 @@ local function CreateTabButton(panel, text, tabButtons, isSmall)
     local width = isSmall and TAB_BUTTON_WIDTH_SMALL or TAB_BUTTON_WIDTH_LARGE
     tabBtn:SetSize(width, TAB_BUTTON_HEIGHT)
 
-    -- Position based on previous tab
-    if #tabButtons == 0 then
-        tabBtn:SetPoint("TOPLEFT", 20, -35)
-    else
-        tabBtn:SetPoint("LEFT", tabButtons[#tabButtons], "RIGHT", 5, 0)
+    -- Calculate absolute position based on accumulated widths
+    -- This ensures consistent positioning regardless of when/how frame is displayed
+    local xOffset = 20  -- Left margin
+    for i = 1, #tabButtons do
+        xOffset = xOffset + tabButtons[i]:GetWidth() + 5
     end
+
+    tabBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", xOffset, -35)
 
     tabBtn:SetText(text)
     return tabBtn
@@ -868,7 +870,15 @@ function Config:Hide()
 end
 
 function Config:Toggle()
-    if self.frame and self.frame:IsShown() then
+    if not self.frame then
+        self:Show()
+        return
+    end
+
+    -- Use IsVisible() instead of IsShown() for proper state detection
+    -- IsVisible() checks if frame is actually visible on screen
+    -- IsShown() only checks if the shown flag is set (can be out of sync with Settings panel)
+    if self.frame:IsVisible() then
         self:Hide()
     else
         self:Show()
