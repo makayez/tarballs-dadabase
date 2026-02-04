@@ -704,21 +704,15 @@ function Config:BuildModuleContent(container, moduleId)
     saveBtn:SetScript("OnClick", function()
         local text = editBox:GetText()
         local newContent = {}
-        local skippedLines = 0
 
         -- Parse lines (split by newline)
         for line in text:gmatch("[^\r\n]+") do
             line = line:trim()
             if line ~= "" then
-                -- Validate line length (WoW chat message limit)
-                if #line > MAX_CHAT_MESSAGE_LENGTH then
-                    skippedLines = skippedLines + 1
-                else
-                    -- Sanitize input - remove WoW formatting codes
-                    line = DB:SanitizeText(line)
-                    if line ~= "" then
-                        table.insert(newContent, line)
-                    end
+                -- Sanitize input - remove WoW formatting codes
+                line = DB:SanitizeText(line)
+                if line ~= "" then
+                    table.insert(newContent, line)
                 end
             end
         end
@@ -731,9 +725,6 @@ function Config:BuildModuleContent(container, moduleId)
 
         -- Show feedback
         local message = "Saved! (" .. #newContent .. " items)"
-        if skippedLines > 0 then
-            message = message .. " (" .. skippedLines .. " lines too long, skipped)"
-        end
         statusLabel:SetText(message)
         contentLabel:SetText("Content Editor (" .. #newContent .. " items)")
         saveBtn:Disable()

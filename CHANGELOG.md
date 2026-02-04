@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Critical:** SavedVariables declaration in TOC file (was TarballsDadabase, corrected to TarballsDadabaseDB) - settings and statistics now persist across restarts
+- **Critical:** Manual commands (`/dadabase say`, `/dadabase guild`) now properly split long messages across multiple messages instead of truncating
 - **Critical:** Taint issue causing "blocked from Blizzard UI action" error (removed C_Timer.After from single message sending)
 - **Critical:** Race condition in multi-message splits (now validates group still exists before sending delayed messages)
 - **Critical:** Message splitting edge cases (empty chunks, infinite loops, proper word-boundary detection)
@@ -42,14 +43,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Config panel toggle bug when switching between `/dadabase` command and Options menu (now uses IsVisible() instead of IsShown())
 - Config panel no longer attempts to embed in Settings window, preventing button overflow and display issues
 - Custom prefix controls now properly gray out when "Enable prefix" is toggled off
+- Content editor no longer skips lines over 255 characters - long content is now automatically split when sent
 
 ### Technical
+- Unified SendMessage() function handles message splitting for all channel types (RAID, PARTY, SAY, GUILD)
 - Message splitting with smart word-boundary detection (searches for spaces/punctuation within last 50 chars)
-- Group validation in C_Timer callbacks prevents errors when player leaves group during multi-message send
+- Channel validation in C_Timer callbacks prevents errors when player leaves group/guild during multi-message send
 - Consolidated all sanitization logic into single DB:SanitizeText() function (DRY principle)
 - Trigger logic simplified: module enabled + group match = triggers (no longer checks triggers.wipe)
 - RefreshControls function reduced from 58 to 38 lines using SetControlState helper
 - Added safety limits to message splitting (max 20 iterations, progress detection)
+- UpdatePrefixControls() function manages custom prefix control states based on prefix enabled flag
 - Removed SetModuleTrigger() function (dead code, never called)
 - Removed triggers from module defaultSettings (new installs don't need them)
 - Triggers field preserved in existing SavedVariables for backward compatibility but no longer used
