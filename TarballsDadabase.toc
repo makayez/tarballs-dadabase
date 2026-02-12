@@ -4,6 +4,7 @@
 ## Author: Tarball-Whisperwind [A]
 ## Version: 0.4.0
 ## SavedVariables: TarballsDadabaseDB
+## IconTexture: Interface\AddOns\TarballsDadabase\icon
 
 Database.lua
 Core.lua
