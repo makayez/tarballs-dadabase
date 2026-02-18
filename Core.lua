@@ -103,7 +103,10 @@ local function DebugPrint(...)
 end
 
 local function GetCurrentGroup()
-    if IsInRaid() then
+    -- Check if in instance group first (LFR, LFD, etc.)
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        return "instance"
+    elseif IsInRaid() then
         return "raid"
     elseif IsInGroup() then
         return "party"
@@ -128,7 +131,9 @@ local function SendContent(content, group)
 
     -- Delay message to avoid protected context (ADDON_ACTION_FORBIDDEN)
     C_Timer.After(0.1, function()
-        if group == "raid" then
+        if group == "instance" then
+            SendChatMessage(content, "INSTANCE_CHAT")
+        elseif group == "raid" then
             SendChatMessage(content, "RAID")
         elseif group == "party" then
             SendChatMessage(content, "PARTY")
@@ -327,7 +332,9 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         end
 
         -- Send directly without timers to avoid taint
-        if IsInRaid() then
+        if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+            SendChatMessage(message, "INSTANCE_CHAT")
+        elseif IsInRaid() then
             SendChatMessage(message, "RAID")
         elseif IsInGroup() then
             SendChatMessage(message, "PARTY")
@@ -415,7 +422,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         print("  /dadabase off - Disable all modules")
         print("  /dadabase debug")
         print("  /dadabase cooldown <seconds>")
-        print("  /dadabase say - Send content to party/raid/say")
+        print("  /dadabase say - Send content to party/raid/instance/say")
         print("  /dadabase guild - Send content to guild chat")
         print("  /dadabase status")
     end
