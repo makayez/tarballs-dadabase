@@ -334,7 +334,9 @@ function DB:GetRandomContent(trigger, group, ignoreTriggers)
                 shouldInclude = true
             else
                 -- Check if this module matches the group (wipe trigger is implicit when module is enabled)
-                local groupMatch = moduleDB.groups[group] == true
+                -- Map "instance" (LFR/LFD) to "raid" for content selection
+                local contentGroup = (group == "instance") and "raid" or group
+                local groupMatch = moduleDB.groups[contentGroup] == true
                 shouldInclude = groupMatch
             end
 

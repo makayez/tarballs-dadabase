@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build zip
+        run: |
+          mkdir -p TarballsDadabase/Modules
+          cp TarballsDadabase.toc Core.lua Config.lua Database.lua icon.tga README.md LICENSE CHANGELOG.md TarballsDadabase/
+          cp Modules/*.lua TarballsDadabase/Modules/
+          zip -r "TarballsDadabase-v${{ steps.version.outputs.version }}.zip" TarballsDadabase/
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "TarballsDadabase-v${{ steps.version.outputs.version }}.zip"
