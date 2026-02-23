@@ -1,10 +1,12 @@
 # Changelog
-
 All notable changes to Tarball's Dadabase will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+## [0.4.3] - 2026-02-22
+### Fixed
+- Increased SendContent delay from 0.1s to 0.5s to reliably escape protected frame context on raid and party wipes
+- Added INSTANCE_CHAT routing for LFR/LFD groups via IsInGroup(LE_PARTY_CATEGORY_INSTANCE)
 
-## [0.4.2]
+## [0.4.2] - 2026-02-11
 ### Fixed
 - Bug with icon.tga not adding
 

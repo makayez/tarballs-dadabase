@@ -2,7 +2,7 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.4.0"
+Dadabase.VERSION = "0.4.3"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
@@ -130,7 +130,8 @@ local function SendContent(content, group)
     DebugPrint("Sending content to " .. (group or "local") .. " (" .. #content .. " chars)")
 
     -- Delay message to avoid protected context (ADDON_ACTION_FORBIDDEN)
-    C_Timer.After(0.1, function()
+    -- 0.5s is needed to reliably escape the protected frame; 0.1s was insufficient for party and raid wipes
+    C_Timer.After(0.5, function()
         if group == "instance" then
             SendChatMessage(content, "INSTANCE_CHAT")
         elseif group == "raid" then
