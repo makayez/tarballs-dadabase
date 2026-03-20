@@ -1,6 +1,30 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.5.0] - 2026-03-20
+
+### Fixed
+- Addon no longer posts "This wipe is now canon" when all content modules are disabled -- it stays silent instead
+- LFG dungeons now correctly check the Parties group setting instead of Raids (LFR still checks Raids)
+- Reset to Defaults button now properly invalidates content cache so changes take effect immediately
+- `/dadabase say` and `/dadabase guild` commands now respect the global enable/disable toggle
+- `encounterActive` state no longer becomes stale after disconnect or leaving a group mid-encounter
+- Corrupted joke entries repaired (10 entries with garbled/missing text)
+
+### Changed
+- `GetCurrentGroup()` returns content group and chat type separately, properly distinguishing LFR (raid) from LFG (party) while both route to INSTANCE_CHAT
+- Extracted `SendManualContent()` and `GetManualChatChannel()` helpers, removing duplicated code between `/dadabase say` and `/dadabase guild`
+- `/dadabase cooldown` slash command now capped at 600 seconds (matching the config slider)
+- Removed ~118 duplicate and near-duplicate dad jokes (1125 down to 1007)
+- Dad jokes database version bumped to 2 -- existing users get cleaned defaults while preserving custom additions and deletions
+
+### Technical
+- `GetRandomContent()` returns `nil, nil` when content pool is empty instead of a fallback string
+- Unused `trigger` parameter in `GetRandomContent()` marked as `_`
+- Removed unreachable `return` statements after `error()` calls in `SetEffectiveContent()`
+- Simplified dbVersion migration debug output (removed misleading "added X new items" counter)
+- Registered `PLAYER_LEAVING_WORLD` event to reset encounter state on zone transitions
+
 ## [0.4.3] - 2026-02-22
 ### Fixed
 - Increased SendContent delay from 0.1s to 0.5s to reliably escape protected frame context on raid and party wipes

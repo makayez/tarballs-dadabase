@@ -2,7 +2,7 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.4.3"
+Dadabase.VERSION = "0.5.0"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
@@ -105,13 +105,19 @@ end
 local function GetCurrentGroup()
     -- Check if in instance group first (LFR, LFD, etc.)
     if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        return "instance"
+        -- Distinguish LFR (raid) from LFG (party) by checking raid status
+        -- Returns the content group for module filtering, plus "instance" chat type
+        if IsInRaid() then
+            return "raid", "instance"
+        else
+            return "party", "instance"
+        end
     elseif IsInRaid() then
-        return "raid"
+        return "raid", nil
     elseif IsInGroup() then
-        return "party"
+        return "party", nil
     end
-    return nil
+    return nil, nil
 end
 
 local function SendContent(content, group)
@@ -166,7 +172,7 @@ local function TriggerContent(triggerType)
     end
 
     -- Get current group
-    local group = GetCurrentGroup()
+    local group, chatType = GetCurrentGroup()
 
     -- Require a group for all automatic triggers
     if not group then
@@ -175,12 +181,12 @@ local function TriggerContent(triggerType)
     end
 
     -- Get random content from database matching trigger and group
-    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(triggerType, group)
+    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, group)
 
     if content then
         lastContentTime = now
         local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
-        SendContent(prefix .. content, group)
+        SendContent(prefix .. content, chatType or group)
 
         -- Track statistics
         if not TarballsDadabaseDB.stats[moduleId] then
@@ -207,6 +213,7 @@ end
 frame:RegisterEvent("ENCOUNTER_START")
 frame:RegisterEvent("ENCOUNTER_END")
 frame:RegisterEvent("ADDON_LOADED")
+frame:RegisterEvent("PLAYER_LEAVING_WORLD")
 
 frame:SetScript("OnEvent", function(_, event, ...)
     if event == "ADDON_LOADED" then
@@ -265,8 +272,68 @@ frame:SetScript("OnEvent", function(_, event, ...)
 
         encounterActive = false
 
+    elseif event == "PLAYER_LEAVING_WORLD" then
+        -- Reset encounter state on zone transitions (handles disconnect/leave mid-fight)
+        encounterActive = false
+
     end
 end)
+
+-- ============================================================================
+-- Manual Content Commands
+-- ============================================================================
+
+local function SendManualContent(chatChannel)
+    -- Check if globally enabled
+    if not TarballsDadabaseDB.globalEnabled then
+        print("Tarball's Dadabase is globally disabled. Enable it in /dadabase config.")
+        return
+    end
+
+    -- Rate limiting for manual commands (3 second cooldown)
+    local now = GetTime()
+    if now - lastManualCommandTime < 3 then
+        print("Please wait " .. math.ceil(3 - (now - lastManualCommandTime)) .. " second(s) before using this command again.")
+        return
+    end
+    lastManualCommandTime = now
+
+    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
+    if not content or not moduleId then
+        print("No content available. Enable at least one module in /dadabase config.")
+        return
+    end
+
+    local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
+    local message = prefix .. content
+
+    -- Validate message length
+    if #message > MAX_CHAT_MESSAGE_LENGTH then
+        print("Warning: Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+        message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+    end
+
+    -- Send directly without timers to avoid taint
+    SendChatMessage(message, chatChannel)
+
+    -- Track statistics
+    if not TarballsDadabaseDB.stats[moduleId] then
+        TarballsDadabaseDB.stats[moduleId] = 0
+    end
+    TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+end
+
+local function GetManualChatChannel()
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        return "INSTANCE_CHAT"
+    elseif IsInRaid() then
+        return "RAID"
+    elseif IsInGroup() then
+        return "PARTY"
+    else
+        return "SAY"
+    end
+end
 
 -- ============================================================================
 -- Slash Commands
@@ -304,88 +371,19 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         print("Tarball's Dadabase debug mode " .. (TarballsDadabaseDB.debug and "enabled" or "disabled") .. ".")
 
     elseif msg:match("^cooldown%s+%d+$") then
-        local value = tonumber(msg:match("%d+"))
+        local value = math.min(tonumber(msg:match("%d+")), 600)
         TarballsDadabaseDB.cooldown = value
         print("Tarball's Dadabase cooldown set to " .. value .. " seconds.")
 
     elseif msg == "say" then
-        -- Rate limiting for manual commands (3 second cooldown)
-        local now = GetTime()
-        if now - lastManualCommandTime < 3 then
-            print("Please wait " .. math.ceil(3 - (now - lastManualCommandTime)) .. " second(s) before using this command again.")
-            return
-        end
-        lastManualCommandTime = now
-
-        local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
-        if not content or not moduleId then
-            print("No content available. Enable at least one module in /dadabase config.")
-            return
-        end
-
-        local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
-        local message = prefix .. content
-
-        -- Validate message length
-        if #message > MAX_CHAT_MESSAGE_LENGTH then
-            print("Warning: Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
-            message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
-        end
-
-        -- Send directly without timers to avoid taint
-        if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-            SendChatMessage(message, "INSTANCE_CHAT")
-        elseif IsInRaid() then
-            SendChatMessage(message, "RAID")
-        elseif IsInGroup() then
-            SendChatMessage(message, "PARTY")
-        else
-            SendChatMessage(message, "SAY")
-        end
-
-        -- Track statistics
-        if not TarballsDadabaseDB.stats[moduleId] then
-            TarballsDadabaseDB.stats[moduleId] = 0
-        end
-        TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+        SendManualContent(GetManualChatChannel())
 
     elseif msg == "guild" then
         if not IsInGuild() then
             print("You are not in a guild!")
             return
         end
-
-        -- Rate limiting for manual commands (3 second cooldown)
-        local now = GetTime()
-        if now - lastManualCommandTime < 3 then
-            print("Please wait " .. math.ceil(3 - (now - lastManualCommandTime)) .. " second(s) before using this command again.")
-            return
-        end
-        lastManualCommandTime = now
-
-        local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
-        if not content or not moduleId then
-            print("No content available. Enable at least one module in /dadabase config.")
-            return
-        end
-
-        local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
-        local message = prefix .. content
-
-        -- Validate message length
-        if #message > MAX_CHAT_MESSAGE_LENGTH then
-            print("Warning: Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
-            message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
-        end
-
-        -- Send directly without timers to avoid taint
-        SendChatMessage(message, "GUILD")
-
-        -- Track statistics
-        if not TarballsDadabaseDB.stats[moduleId] then
-            TarballsDadabaseDB.stats[moduleId] = 0
-        end
-        TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
+        SendManualContent("GUILD")
 
     elseif msg == "status" then
         local inInstance, instanceType = IsInInstance()

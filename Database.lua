@@ -139,28 +139,19 @@ function DB:Initialize()
 
         -- Update version (new defaults will be automatically included via GetEffectiveContent)
         if moduleDB.dbVersion < module.dbVersion then
-            -- Invalidate cache before checking counts
-            self.contentCache[moduleId] = nil
-
-            -- Preserve both user deletions and additions
-            -- New default content will appear automatically (not in deletions list)
             local deletionCount = #moduleDB.userDeletions
             local additionCount = #moduleDB.userAdditions
-            local oldCount = #self:GetEffectiveContent(moduleId)
 
             moduleDB.dbVersion = module.dbVersion
 
-            -- Invalidate cache again after version change
+            -- Invalidate cache and get new effective content count
             self.contentCache[moduleId] = nil
-
             local newCount = #self:GetEffectiveContent(moduleId)
-            local addedCount = newCount - oldCount
 
             if TarballsDadabaseDB.debug then
                 print(module.name .. ": Updated to version " .. module.dbVersion)
                 print("  - Preserved " .. deletionCount .. " user deletions")
                 print("  - Preserved " .. additionCount .. " user additions")
-                print("  - Added " .. addedCount .. " new default items")
                 print("  - Total content now: " .. newCount)
             end
         end
@@ -313,14 +304,14 @@ function DB:GetContentPrefix(moduleId)
     return prefixes[moduleId] or ""
 end
 
-function DB:GetRandomContent(trigger, group, ignoreTriggers)
+function DB:GetRandomContent(_, group, ignoreTriggers)
     -- Build pool of all matching content from enabled modules
     -- Each entry is {content = "text", moduleId = "id"}
     local contentPool = {}
 
     -- Check if database is initialized
     if not TarballsDadabaseDB or not TarballsDadabaseDB.modules then
-        return "The Dadabase is empty. This wipe is now canon.", "unknown"
+        return nil, nil
     end
 
     for moduleId, _ in pairs(self.modules) do
@@ -334,9 +325,7 @@ function DB:GetRandomContent(trigger, group, ignoreTriggers)
                 shouldInclude = true
             else
                 -- Check if this module matches the group (wipe trigger is implicit when module is enabled)
-                -- Map "instance" (LFR/LFD) to "raid" for content selection
-                local contentGroup = (group == "instance") and "raid" or group
-                local groupMatch = moduleDB.groups[contentGroup] == true
+                local groupMatch = moduleDB.groups[group] == true
                 shouldInclude = groupMatch
             end
 
@@ -352,16 +341,7 @@ function DB:GetRandomContent(trigger, group, ignoreTriggers)
 
     -- Return random item from pool
     if #contentPool == 0 then
-        -- Return fallback with first enabled module ID (or "unknown" if none)
-        local fallbackModuleId = "unknown"
-        for moduleId, _ in pairs(self.modules) do
-            local moduleDB = TarballsDadabaseDB.modules[moduleId]
-            if moduleDB and moduleDB.enabled then
-                fallbackModuleId = moduleId
-                break
-            end
-        end
-        return "The Dadabase is empty. This wipe is now canon.", fallbackModuleId
+        return nil, nil
     end
 
     local selected = contentPool[math.random(#contentPool)]
@@ -417,12 +397,10 @@ function DB:SetEffectiveContent(moduleId, newContent)
     -- Validate inputs
     if type(moduleId) ~= "string" then
         error("SetEffectiveContent: moduleId must be a string, got " .. type(moduleId))
-        return
     end
 
     if type(newContent) ~= "table" then
         error("SetEffectiveContent: newContent must be a table, got " .. type(newContent))
-        return
     end
 
     local module = self.modules[moduleId]
@@ -430,12 +408,10 @@ function DB:SetEffectiveContent(moduleId, newContent)
 
     if not module then
         error("SetEffectiveContent: module not found: " .. tostring(moduleId))
-        return
     end
 
     if not moduleDB then
         error("SetEffectiveContent: moduleDB not initialized for: " .. tostring(moduleId))
-        return
     end
 
     -- Build set of new content for fast lookup
@@ -443,7 +419,6 @@ function DB:SetEffectiveContent(moduleId, newContent)
     for _, item in ipairs(newContent) do
         if type(item) ~= "string" then
             error("SetEffectiveContent: all content items must be strings, found " .. type(item))
-            return
         end
         newContentSet[item] = true
     end

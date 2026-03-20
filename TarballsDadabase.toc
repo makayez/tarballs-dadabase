@@ -2,7 +2,7 @@
 ## Title: Tarball's Dadabase
 ## Notes: Dispenses dad jokes upon group wipes
 ## Author: Tarball-Whisperwind [A]
-## Version: 0.4.3
+## Version: 0.5.0
 ## SavedVariables: TarballsDadabaseDB
 ## IconTexture: Interface\AddOns\TarballsDadabase\icon
 

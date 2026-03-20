@@ -751,6 +751,8 @@ function Config:BuildModuleContent(container, moduleId)
         -- Clear all user changes
         moduleDB.userAdditions = {}
         moduleDB.userDeletions = {}
+        -- Invalidate content cache so runtime uses fresh defaults
+        DB.contentCache[moduleId] = nil
         LoadContent()
         statusLabel:SetText("Reset to defaults!")
         C_Timer.After(STATUS_CLEAR_DELAY, function()
