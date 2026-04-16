@@ -2,7 +2,7 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.5.0"
+Dadabase.VERSION = "0.5.1"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
@@ -103,9 +103,9 @@ local function DebugPrint(...)
 end
 
 local function GetCurrentGroup()
-    -- Check if in instance group first (LFR, LFD, etc.)
+    -- Check if in instance group first (LFR, LFD, Ritual Sites, etc.)
     if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        -- Distinguish LFR (raid) from LFG (party) by checking raid status
+        -- Distinguish LFR (raid) from LFG (party/scenario) by checking raid status
         -- Returns the content group for module filtering, plus "instance" chat type
         if IsInRaid() then
             return "raid", "instance"
@@ -152,8 +152,8 @@ local function SendContent(content, group)
     end)
 end
 
-local function TriggerContent(triggerType)
-    DebugPrint("TriggerContent called: " .. triggerType)
+local function TriggerContent()
+    DebugPrint("TriggerContent called")
 
     -- Check if globally enabled
     if not TarballsDadabaseDB.globalEnabled then
@@ -259,15 +259,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
         DebugPrint("  Success: " .. tostring(success) .. " (0=wipe, 1=kill)")
 
         local inInstance, instanceType = IsInInstance()
-        if instanceType ~= "party" and instanceType ~= "raid" then
-            DebugPrint("  SKIPPED: Not in party or raid instance")
+        if instanceType ~= "party" and instanceType ~= "raid" and instanceType ~= "scenario" then
+            DebugPrint("  SKIPPED: Not in party, raid, or scenario instance")
             encounterActive = false
             return
         end
 
         if encounterActive and success == 0 then
             DebugPrint("  WIPE DETECTED: Triggering content")
-            TriggerContent("wipe")
+            TriggerContent()
         end
 
         encounterActive = false

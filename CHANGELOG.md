@@ -1,6 +1,21 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.5.1] - 2026-04-16
+
+### Added
+- Compatibility with WoW 12.0.5
+- Support for wipe detection in Ritual Sites and other Scenario-based instances
+
+### Fixed
+- Fixed shortstop joke (shortstop is between 2nd and 3rd base)
+- Fixed missing apostrophes in two jokes ("Im" -> "I'm")
+- Shortened 4 jokes that exceeded the 205-character message limit
+
+### Changed
+- Updated TOC Interface version to 120005, 120001 (multi-version support)
+- Removed unused `triggerType` parameter from `TriggerContent`
+
 ## [0.5.0] - 2026-03-20
 
 ### Fixed

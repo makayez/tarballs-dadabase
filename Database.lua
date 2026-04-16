@@ -291,6 +291,13 @@ function DB:GetContentPrefix(moduleId)
 
     local randomAdjective = adjectives[math.random(#adjectives)]
 
+    if moduleId == "guildquotes" then
+        local prefixes = {
+            guildquotes = "And now, for some " .. randomAdjective .. " famous words from a friend: "
+        }
+        return prefixes[moduleId] or ""
+    end
+
     -- Determine a/an based on first letter
     local firstLetter = randomAdjective:sub(1, 1):lower()
     local vowels = {a = true, e = true, i = true, o = true, u = true}
@@ -298,8 +305,7 @@ function DB:GetContentPrefix(moduleId)
 
     local prefixes = {
         dadjokes = "And now, for " .. article .. " " .. randomAdjective .. " dad joke: ",
-        demotivational = "And now, for " .. article .. " " .. randomAdjective .. " motivational quote: ",
-        guildquotes = "And now, for some " .. randomAdjective .. " famous words from a friend: "
+        demotivational = "And now, for " .. article .. " " .. randomAdjective .. " motivational quote: "
     }
     return prefixes[moduleId] or ""
 end
