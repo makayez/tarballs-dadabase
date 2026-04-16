@@ -1,0 +1,3 @@
+package-as: TarballsDadabase
+
+enable-nolib-creation: no
