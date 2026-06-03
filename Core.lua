@@ -2,7 +2,7 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.5.1"
+Dadabase.VERSION = "0.5.2-alpha"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
@@ -126,14 +126,14 @@ local function SendContent(content, group)
         return
     end
 
-    -- Validate message length
+    -- Validate message length (UTF-8 safe, so we never split a multibyte glyph)
     if #content > MAX_CHAT_MESSAGE_LENGTH then
-        DebugPrint("Message too long (" .. #content .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
-        content = content:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+        DebugPrint("Message too long (" .. #content .. " bytes), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+        content = Dadabase.DatabaseManager:TruncateToBytes(content, MAX_CHAT_MESSAGE_LENGTH)
     end
 
     pendingMessage = true
-    DebugPrint("Sending content to " .. (group or "local") .. " (" .. #content .. " chars)")
+    DebugPrint("Sending content to " .. (group or "local") .. " (" .. #content .. " bytes)")
 
     -- Delay message to avoid protected context (ADDON_ACTION_FORBIDDEN)
     -- 0.5s is needed to reliably escape the protected frame; 0.1s was insufficient for party and raid wipes
@@ -145,7 +145,8 @@ local function SendContent(content, group)
         elseif group == "party" then
             SendChatMessage(content, "PARTY")
         else
-            -- Fallback - print locally
+            -- Unreachable by design: the sole caller (TriggerContent) only passes
+            -- "instance", "raid", or "party". Kept as a defensive fallback.
             print(content)
         end
         pendingMessage = false
@@ -181,7 +182,7 @@ local function TriggerContent()
     end
 
     -- Get random content from database matching trigger and group
-    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, group)
+    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(group)
 
     if content then
         lastContentTime = now
@@ -258,7 +259,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         DebugPrint("=== ENCOUNTER_END ===")
         DebugPrint("  Success: " .. tostring(success) .. " (0=wipe, 1=kill)")
 
-        local inInstance, instanceType = IsInInstance()
+        local _, instanceType = IsInInstance()
         if instanceType ~= "party" and instanceType ~= "raid" and instanceType ~= "scenario" then
             DebugPrint("  SKIPPED: Not in party, raid, or scenario instance")
             encounterActive = false
@@ -273,8 +274,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
         encounterActive = false
 
     elseif event == "PLAYER_LEAVING_WORLD" then
-        -- Reset encounter state on zone transitions (handles disconnect/leave mid-fight)
+        -- Reset encounter state on zone transitions (handles disconnect/leave mid-fight).
+        -- Also clear pendingMessage for symmetry: a pending send timer that has not yet
+        -- fired would otherwise leave the flag set across the zone boundary until it does.
         encounterActive = false
+        pendingMessage = false
 
     end
 end)
@@ -283,6 +287,11 @@ end)
 -- Manual Content Commands
 -- ============================================================================
 
+-- Manual commands (/dadabase say|guild) intentionally use a send path independent
+-- of the automatic wipe trigger: they send synchronously (to avoid taint from a
+-- timer) and gate only on their own 3s lastManualCommandTime, deliberately NOT
+-- sharing the automatic path's lastContentTime cooldown or pendingMessage flag.
+-- A user explicitly invoking a command should not be blocked by automatic state.
 local function SendManualContent(chatChannel)
     -- Check if globally enabled
     if not TarballsDadabaseDB.globalEnabled then
@@ -296,9 +305,8 @@ local function SendManualContent(chatChannel)
         print("Please wait " .. math.ceil(3 - (now - lastManualCommandTime)) .. " second(s) before using this command again.")
         return
     end
-    lastManualCommandTime = now
 
-    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, nil, true)
+    local content, moduleId = Dadabase.DatabaseManager:GetRandomContent(nil, true)
     if not content or not moduleId then
         print("No content available. Enable at least one module in /dadabase config.")
         return
@@ -307,11 +315,15 @@ local function SendManualContent(chatChannel)
     local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
     local message = prefix .. content
 
-    -- Validate message length
+    -- Validate message length (UTF-8 safe, so we never split a multibyte glyph)
     if #message > MAX_CHAT_MESSAGE_LENGTH then
-        print("Warning: Message too long (" .. #message .. " chars), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
-        message = message:sub(1, MAX_CHAT_MESSAGE_LENGTH)
+        print("Warning: Message too long (" .. #message .. " bytes), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
+        message = Dadabase.DatabaseManager:TruncateToBytes(message, MAX_CHAT_MESSAGE_LENGTH)
     end
+
+    -- Commit the cooldown only once we are about to send, so a "no content"
+    -- early return does not consume the 3s window.
+    lastManualCommandTime = now
 
     -- Send directly without timers to avoid taint
     SendChatMessage(message, chatChannel)
@@ -358,6 +370,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
             Dadabase.DatabaseManager:SetModuleEnabled(moduleId, true)
         end
         print("Tarball's Dadabase enabled (all modules).")
+        if Dadabase.Config then Dadabase.Config:Refresh() end
 
     elseif msg == "off" then
         -- Disable all modules
@@ -365,6 +378,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
             Dadabase.DatabaseManager:SetModuleEnabled(moduleId, false)
         end
         print("Tarball's Dadabase disabled (all modules).")
+        if Dadabase.Config then Dadabase.Config:Refresh() end
 
     elseif msg == "debug" then
         TarballsDadabaseDB.debug = not TarballsDadabaseDB.debug
@@ -374,6 +388,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         local value = math.min(tonumber(msg:match("%d+")), 600)
         TarballsDadabaseDB.cooldown = value
         print("Tarball's Dadabase cooldown set to " .. value .. " seconds.")
+        if Dadabase.Config then Dadabase.Config:Refresh() end
 
     elseif msg == "say" then
         SendManualContent(GetManualChatChannel())
@@ -386,7 +401,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         SendManualContent("GUILD")
 
     elseif msg == "status" then
-        local inInstance, instanceType = IsInInstance()
+        local _, instanceType = IsInInstance()
         local statusLines = {
             "Tarball's Dadabase Status:",
             "  Global Enabled: " .. (TarballsDadabaseDB.globalEnabled and "ON" or "OFF"),

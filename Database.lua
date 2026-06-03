@@ -11,9 +11,81 @@ DB.modules = {}
 -- Content cache for performance (especially with 1100+ jokes)
 DB.contentCache = {}
 
+-- Immutable constants for default prefix generation. Hoisted to file scope so
+-- they are allocated once at load instead of rebuilt on every GetContentPrefix call.
+local PREFIX_ADJECTIVES = {
+    "uplifting",
+    "inspiring",
+    "heartwarming",
+    "enlightening",
+    "encouraging",
+    "delightful",
+    "magnificent",
+    "spectacular",
+    "brilliant",
+    "empowering",
+    "extraordinary",
+    "legendary",
+    "outstanding",
+    "phenomenal",
+    "remarkable",
+    "triumphant",
+    "awe-inspiring",
+    "life-changing",
+    "mind-blowing",
+    "game-changing",
+    "electrifying",
+    "exhilarating",
+    "mesmerizing",
+    "enchanting",
+    "spellbinding",
+    "fascinating",
+    "gripping",
+    "compelling",
+    "unforgettable",
+    "timeless",
+    "priceless",
+    "unparalleled",
+    "supreme",
+    "transcendent",
+    "majestic",
+    "epic",
+    "heroic",
+    "bold",
+    "daring",
+    "intrepid"
+}
+
+local PREFIX_VOWELS = {a = true, e = true, i = true, o = true, u = true}
+
 -- ============================================================================
 -- Utility Functions
 -- ============================================================================
+
+-- Truncate a string to at most maxBytes bytes without splitting a multibyte
+-- UTF-8 codepoint. Lua's # and string.sub operate on bytes; cutting mid-sequence
+-- would leave an invalid trailing byte that renders as a garbled glyph in chat.
+function DB:TruncateToBytes(text, maxBytes)
+    if not text then
+        return ""
+    end
+    if #text <= maxBytes then
+        return text
+    end
+
+    -- Back up while the first byte we would drop (at i+1) is a UTF-8 continuation
+    -- byte (0x80-0xBF), so we never cut a codepoint in half.
+    local i = maxBytes
+    while i > 0 do
+        local b = text:byte(i + 1)
+        if not b or b < 0x80 or b >= 0xC0 then
+            break
+        end
+        i = i - 1
+    end
+
+    return text:sub(1, i)
+end
 
 -- Sanitize WoW formatting codes from user input
 function DB:SanitizeText(text)
@@ -127,8 +199,12 @@ function DB:Initialize()
             end
         end
 
-        -- Ensure all settings exist (including legacy fields for backward compatibility)
-        if moduleDB.triggers == nil then moduleDB.triggers = {} end  -- Legacy: preserved for old SavedVariables
+        -- Prune the legacy 'triggers' field if an old SavedVariables profile still
+        -- carries it. It is never read anymore (group matching uses moduleDB.groups
+        -- and the wipe trigger is implicit when a module is enabled).
+        moduleDB.triggers = nil
+
+        -- Ensure all settings exist
         if moduleDB.groups == nil then moduleDB.groups = {} end
         if moduleDB.userAdditions == nil then moduleDB.userAdditions = {} end
         if moduleDB.userDeletions == nil then moduleDB.userDeletions = {} end
@@ -139,19 +215,18 @@ function DB:Initialize()
 
         -- Update version (new defaults will be automatically included via GetEffectiveContent)
         if moduleDB.dbVersion < module.dbVersion then
-            local deletionCount = #moduleDB.userDeletions
-            local additionCount = #moduleDB.userAdditions
-
             moduleDB.dbVersion = module.dbVersion
 
-            -- Invalidate cache and get new effective content count
+            -- Invalidate cache so the next read rebuilds effective content lazily.
             self.contentCache[moduleId] = nil
-            local newCount = #self:GetEffectiveContent(moduleId)
 
             if TarballsDadabaseDB.debug then
+                -- Materialize the count only when debug is on (avoids building and
+                -- discarding the full content table on every version bump).
+                local newCount = #self:GetEffectiveContent(moduleId)
                 print(module.name .. ": Updated to version " .. module.dbVersion)
-                print("  - Preserved " .. deletionCount .. " user deletions")
-                print("  - Preserved " .. additionCount .. " user additions")
+                print("  - Preserved " .. #moduleDB.userDeletions .. " user deletions")
+                print("  - Preserved " .. #moduleDB.userAdditions .. " user additions")
                 print("  - Total content now: " .. newCount)
             end
         end
@@ -162,6 +237,10 @@ end
 -- Content Retrieval
 -- ============================================================================
 
+-- Returns the module's effective content list (defaults minus user deletions,
+-- plus user additions). The returned table is the SHARED cached instance and
+-- MUST be treated as read-only -- mutating it would corrupt the cache for all
+-- subsequent reads until the next invalidation.
 function DB:GetEffectiveContent(moduleId)
     -- Return cached content if available
     if self.contentCache[moduleId] then
@@ -240,68 +319,20 @@ function DB:GetContentPrefix(moduleId)
         return prefix
     end
 
-    -- Random adjectives to inject into prefixes (40 most fitting)
-    local adjectives = {
-        "uplifting",
-        "inspiring",
-        "heartwarming",
-        "enlightening",
-        "encouraging",
-        "delightful",
-        "magnificent",
-        "spectacular",
-        "brilliant",
-        "empowering",
-        "extraordinary",
-        "legendary",
-        "outstanding",
-        "phenomenal",
-        "remarkable",
-        "triumphant",
-        "awe-inspiring",
-        "life-changing",
-        "mind-blowing",
-        "game-changing",
-        "electrifying",
-        "exhilarating",
-        "mesmerizing",
-        "enchanting",
-        "spellbinding",
-        "fascinating",
-        "gripping",
-        "compelling",
-        "unforgettable",
-        "timeless",
-        "priceless",
-        "unparalleled",
-        "supreme",
-        "transcendent",
-        "majestic",
-        "epic",
-        "heroic",
-        "bold",
-        "daring",
-        "intrepid"
-    }
-
     -- Bounds checking - fallback if adjectives table is empty or corrupted
-    if #adjectives == 0 then
+    if #PREFIX_ADJECTIVES == 0 then
         return ""
     end
 
-    local randomAdjective = adjectives[math.random(#adjectives)]
+    local randomAdjective = PREFIX_ADJECTIVES[math.random(#PREFIX_ADJECTIVES)]
 
     if moduleId == "guildquotes" then
-        local prefixes = {
-            guildquotes = "And now, for some " .. randomAdjective .. " famous words from a friend: "
-        }
-        return prefixes[moduleId] or ""
+        return "And now, for some " .. randomAdjective .. " famous words from a friend: "
     end
 
     -- Determine a/an based on first letter
     local firstLetter = randomAdjective:sub(1, 1):lower()
-    local vowels = {a = true, e = true, i = true, o = true, u = true}
-    local article = vowels[firstLetter] and "an" or "a"
+    local article = PREFIX_VOWELS[firstLetter] and "an" or "a"
 
     local prefixes = {
         dadjokes = "And now, for " .. article .. " " .. randomAdjective .. " dad joke: ",
@@ -310,48 +341,55 @@ function DB:GetContentPrefix(moduleId)
     return prefixes[moduleId] or ""
 end
 
-function DB:GetRandomContent(_, group, ignoreTriggers)
-    -- Build pool of all matching content from enabled modules
-    -- Each entry is {content = "text", moduleId = "id"}
-    local contentPool = {}
-
+function DB:GetRandomContent(group, ignoreTriggers)
     -- Check if database is initialized
     if not TarballsDadabaseDB or not TarballsDadabaseDB.modules then
         return nil, nil
     end
 
+    -- Two-step weighted pick to avoid materializing the entire content pool
+    -- (1100+ jokes) on every trigger: first choose a module weighted by its item
+    -- count, then pick a uniform-random item within that module. This is
+    -- distribution-equivalent to a flat uniform pick over all items
+    -- (P(item) = (weight_m / total) * (1 / weight_m) = 1 / total) but allocates
+    -- nothing per item and reuses the cached content arrays directly.
+    local matching = {}
+    local total = 0
+
     for moduleId, _ in pairs(self.modules) do
         local moduleDB = TarballsDadabaseDB.modules[moduleId]
 
         if moduleDB and moduleDB.enabled then
-            local shouldInclude = false
-
-            if ignoreTriggers then
-                -- For manual commands, ignore group settings
-                shouldInclude = true
-            else
-                -- Check if this module matches the group (wipe trigger is implicit when module is enabled)
-                local groupMatch = moduleDB.groups[group] == true
-                shouldInclude = groupMatch
-            end
+            -- Manual commands ignore group settings; automatic triggers require a
+            -- group match (the wipe trigger is implicit when the module is enabled)
+            local shouldInclude = ignoreTriggers or (moduleDB.groups[group] == true)
 
             if shouldInclude then
-                -- Add all effective content from this module to the pool
                 local content = self:GetEffectiveContent(moduleId)
-                for _, item in ipairs(content) do
-                    table.insert(contentPool, {content = item, moduleId = moduleId})
+                local count = #content
+                if count > 0 then
+                    table.insert(matching, {content = content, moduleId = moduleId, weight = count})
+                    total = total + count
                 end
             end
         end
     end
 
-    -- Return random item from pool
-    if #contentPool == 0 then
+    if total == 0 then
         return nil, nil
     end
 
-    local selected = contentPool[math.random(#contentPool)]
-    return selected.content, selected.moduleId
+    -- Cumulative-weight walk: r in [1, total] lands in exactly one module's band
+    local r = math.random(total)
+    for _, entry in ipairs(matching) do
+        if r <= entry.weight then
+            return entry.content[math.random(entry.weight)], entry.moduleId
+        end
+        r = r - entry.weight
+    end
+
+    -- Unreachable: weights sum to total and r <= total
+    return nil, nil
 end
 
 function DB:GetModuleSettings(moduleId)
@@ -390,10 +428,10 @@ function DB:SetCustomPrefix(moduleId, prefix)
         -- Sanitize and validate prefix
         prefix = self:SanitizeText(prefix or "")
 
-        -- Limit prefix length (50 characters max to leave room for content)
-        if #prefix > 50 then
-            prefix = prefix:sub(1, 50)
-        end
+        -- Limit prefix length to 50 bytes to leave room for content. UTF-8 safe so
+        -- a multibyte prefix is not cut mid-codepoint (the edit box limits to 50
+        -- characters, which can exceed 50 bytes for non-ASCII input).
+        prefix = self:TruncateToBytes(prefix, 50)
 
         TarballsDadabaseDB.modules[moduleId].customPrefix = prefix
     end
