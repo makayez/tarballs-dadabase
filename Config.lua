@@ -12,8 +12,10 @@ local CONFIG_PANEL_HEIGHT = 650
 local TAB_BUTTON_WIDTH_SMALL = 120
 local TAB_BUTTON_WIDTH_LARGE = 130
 local TAB_BUTTON_HEIGHT = 25
-local MAX_CHAT_MESSAGE_LENGTH = 255
-local MAX_CONTENT_ENTRY_LENGTH = 205  -- 255 - 50 (max prefix length)
+-- 255-byte chat limit minus the longest generated prefix (the Guild Quotes
+-- prefix reaches 60 bytes with "extraordinary"), so a max-length entry plus its
+-- prefix still fits in one chat message without truncation.
+local MAX_CONTENT_ENTRY_LENGTH = 195
 local EDITOR_MIN_HEIGHT = 180
 local EDITOR_LINE_HEIGHT = 14
 local EDITOR_WIDTH = 600
@@ -390,6 +392,26 @@ local function CreateConfigPanel()
         end
     end)
 
+    -- Re-apply saved-variable values into the settings widgets. Called on panel
+    -- open (and after slash commands) so the displayed state never drifts from
+    -- the DB when both the panel and slash commands write the same settings.
+    settingsTab.SyncFromDB = function()
+        globalEnableCheckbox:SetChecked(TarballsDadabaseDB.globalEnabled)
+        cooldownSlider:SetValue(TarballsDadabaseDB.cooldown)  -- fires OnValueChanged, which updates valueText
+        soundCheckbox:SetChecked(TarballsDadabaseDB.soundEnabled)
+
+        local soundName = "Level Up"
+        for _, option in ipairs(SOUND_OPTIONS) do
+            if option.value == TarballsDadabaseDB.soundEffect then
+                soundName = option.text
+                break
+            end
+        end
+        UIDropDownMenu_SetText(soundDropdown, soundName)
+
+        UpdateStats()
+    end
+
     -- Module Tabs
     for _, moduleTab in ipairs(Config.moduleTabs) do
         local tabBtn = CreateTabButton(panel, moduleTab.name, tabButtons, false)
@@ -405,6 +427,9 @@ local function CreateConfigPanel()
         -- Build module-specific content
         moduleTab.buildContent(moduleTabFrame, moduleTab.moduleId)
     end
+
+    -- Expose tabs so Config:Refresh() can resync widgets from the DB on open
+    panel.tabs = tabs
 
     -- Show about tab by default
     ShowTab(1)
@@ -594,7 +619,7 @@ function Config:BuildModuleContent(container, moduleId)
     instructionsLabel:SetPoint("TOPLEFT", 10, yOffset)
     instructionsLabel:SetPoint("TOPRIGHT", -10, yOffset)
     instructionsLabel:SetJustifyH("LEFT")
-    instructionsLabel:SetText("Edit the content below (one item per line, max 205 characters per line to allow room for prefix). Click 'Save Changes' to apply your edits.")
+    instructionsLabel:SetText("Edit the content below (one item per line, max " .. MAX_CONTENT_ENTRY_LENGTH .. " characters per line to allow room for prefix). Click 'Save Changes' to apply your edits.")
     yOffset = yOffset - 25
 
     -- Multi-line text editor with border (includes buttons at bottom)
@@ -711,7 +736,8 @@ function Config:BuildModuleContent(container, moduleId)
         for line in text:gmatch("[^\r\n]+") do
             line = line:trim()
             if line ~= "" then
-                -- Validate line length (500 chars allows for prefix + 2 message splits)
+                -- Validate line length against the single-message cap (over-limit
+                -- lines are skipped, not split -- there is no multi-message logic)
                 if #line > MAX_CONTENT_ENTRY_LENGTH then
                     skippedLines = skippedLines + 1
                 else
@@ -727,18 +753,21 @@ function Config:BuildModuleContent(container, moduleId)
         -- Update the database
         DB:SetEffectiveContent(moduleId, newContent)
 
-        -- Update original text to match saved content
-        originalText = text
+        -- Reload the editor from canonical stored content so the displayed text
+        -- always matches what was persisted (skipped over-length lines, sanitized
+        -- formatting codes, and collapsed duplicates would otherwise linger on
+        -- screen behind a "Saved!" message). LoadContent re-reads GetEffectiveContent,
+        -- resets originalText, resizes, disables the buttons, and updates the count.
+        LoadContent()
 
-        -- Show feedback
-        local message = "Saved! (" .. #newContent .. " items)"
+        -- Show feedback using the actual stored count
+        local savedCount = #DB:GetEffectiveContent(moduleId)
+        local message = "Saved! (" .. savedCount .. " items)"
         if skippedLines > 0 then
-            message = message .. " (" .. skippedLines .. " lines over 205 chars, skipped)"
+            message = message .. " (" .. skippedLines .. " lines over "
+                .. MAX_CONTENT_ENTRY_LENGTH .. " chars, skipped)"
         end
         statusLabel:SetText(message)
-        contentLabel:SetText("Content Editor (" .. #newContent .. " items)")
-        saveBtn:Disable()
-        resetBtn:Disable()
 
         -- Clear status after 3 seconds
         C_Timer.After(STATUS_CLEAR_DELAY, function()
@@ -880,6 +909,21 @@ function Config:BuildModuleContent(container, moduleId)
     end)
 
     container.RefreshControls = RefreshControls
+
+    -- Re-apply saved-variable values into this module tab's widgets. Called on
+    -- panel open (and after slash commands) so checkbox/prefix state cannot drift
+    -- from the DB. Intentionally does NOT reload the content editor: no slash
+    -- command edits content, and reloading would discard a user's unsaved edits.
+    container.SyncFromDB = function()
+        enableCheckbox:SetChecked(moduleDB.enabled)
+        raidCheckbox:SetChecked(moduleDB.groups.raid == true)
+        partyCheckbox:SetChecked(moduleDB.groups.party == true)
+        prefixCheckbox:SetChecked(moduleDB.prefixEnabled == true)
+        customPrefixCheckbox:SetChecked(moduleDB.useCustomPrefix == true)
+        prefixInput:SetText(moduleDB.customPrefix or "")
+        RefreshControls()
+    end
+
     RefreshControls()
     LoadContent()
 end
@@ -890,10 +934,26 @@ end
 
 Config.frame = nil
 
+-- Resync all panel widgets from saved variables. Safe to call when the panel
+-- has never been built (no-op) -- the build path already reads fresh values.
+function Config:Refresh()
+    if not self.frame or not self.frame.tabs then
+        return
+    end
+    for _, tab in ipairs(self.frame.tabs) do
+        if tab.SyncFromDB then
+            tab.SyncFromDB()
+        end
+    end
+end
+
 function Config:Show()
     if not self.frame then
         self.frame = CreateConfigPanel()
     end
+    -- Resync before showing so values changed via slash commands while the
+    -- (cached) panel was hidden are reflected on reopen.
+    self:Refresh()
     self.frame:Show()
 end
 
