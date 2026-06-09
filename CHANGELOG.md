@@ -1,6 +1,17 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.5.2-beta.1] - 2026-06-04
+
+Promotes the 0.5.2-alpha build to the beta channel (same addon code) and includes release-workflow fixes made since the alpha.
+
+### Changed
+- Promoted to beta after alpha testing; addon code unchanged from 0.5.2-alpha
+
+### Technical
+- Release workflow: dropped the doubled `.zip` extension from the CurseForge upload filename
+- Release workflow: bumped `actions/checkout` v4 -> v5 (Node 24) to resolve the Node 20 deprecation
+
 ## [0.5.2-alpha] - 2026-06-03
 
 ### Added
