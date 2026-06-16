@@ -1,6 +1,32 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.5.2] - 2026-06-09
+
+Stable release of the 0.5.2 line (previously shipped as 0.5.2-alpha and 0.5.2-beta.1). Addon code is unchanged from those prereleases.
+
+### Added
+- Compatibility with WoW 12.0.7
+
+### Fixed
+- Guild Quotes messages near the length limit are no longer silently truncated -- the per-line content cap now accounts for the longest generated prefix (60 bytes), so a max-length entry plus its prefix fits in one chat message
+- Content editor now reloads from saved content after Save, so over-length/sanitized lines that were not stored no longer linger on screen behind a "Saved!" message
+- Config panel now resyncs its controls from saved settings when reopened and after `/dadabase on`, `off`, and `cooldown`, so the displayed state no longer drifts from the actual settings
+- Message and custom-prefix truncation is now UTF-8 aware and will not split a multibyte character mid-sequence
+
+### Changed
+- Updated TOC Interface version to 120007, 120005
+- `/dadabase say` and `/dadabase guild` now commit their cooldown only when a message is actually sent, so a "no content" result no longer consumes the 3-second window
+
+### Technical
+- `GetRandomContent()` uses a weighted two-step pick instead of materializing the full content pool on every trigger (no per-item allocation; identical uniform distribution)
+- Default-prefix `adjectives`/`vowels` tables hoisted to file scope (allocated once instead of per message)
+- Version-bump migration only computes the effective-content count when debug is enabled
+- `GetEffectiveContent()` documented as returning a shared read-only table
+- `pendingMessage` is cleared on `PLAYER_LEAVING_WORLD` for symmetry with `encounterActive`
+- Removed dead code: vestigial `_` parameter in `GetRandomContent()`, the unread legacy `moduleDB.triggers` field (now pruned from saved profiles), an unused duplicate `MAX_CHAT_MESSAGE_LENGTH` constant in Config, unused `inInstance` locals, and a stale `500 chars` comment
+- Release workflow: dropped the doubled `.zip` extension from the CurseForge upload filename and bumped `actions/checkout` to v5 (Node 24)
+
 ## [0.5.2-beta.1] - 2026-06-04
 
 Promotes the 0.5.2-alpha build to the beta channel (same addon code) and includes release-workflow fixes made since the alpha.
