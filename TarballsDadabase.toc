@@ -1,8 +1,8 @@
-## Interface: 120007, 120005
+## Interface: 120100, 120007, 120005
 ## Title: Tarball's Dadabase
 ## Notes: Dispenses dad jokes upon group wipes
 ## Author: Tarball-Whisperwind [A]
-## Version: 0.5.2
+## Version: 0.5.3
 ## X-Curse-Project-ID: 1445988
 ## SavedVariables: TarballsDadabaseDB
 ## IconTexture: Interface\AddOns\TarballsDadabase\icon

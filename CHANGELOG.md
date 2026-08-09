@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Compatibility with WoW 12.1
+
 ## [0.5.2] - 2026-06-09
 
 Stable release of the 0.5.2 line (previously shipped as 0.5.2-alpha and 0.5.2-beta.1). Addon code is unchanged from those prereleases.
