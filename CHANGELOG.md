@@ -1,7 +1,7 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
-## [Unreleased]
+## [0.5.3]
 
 ### Added
 - Compatibility with WoW 12.1
