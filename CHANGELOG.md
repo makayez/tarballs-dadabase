@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.5.4-beta.1] - 2026-10-04
+
+### Added
+- Compatibility with WoW 12.1.5
+
 ## [0.5.3]
 
 ### Added
