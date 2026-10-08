@@ -42,7 +42,12 @@ Behaviour notes for the new module:
 
 ---
 
-## 2. Issues catalog (found, NOT fixed)
+## 2. Issues catalog
+
+Found during the review pass. Items marked **RESOLVED** were fixed; the rest remain open for
+in-game testing. One additional load-breaking bug was found during syntax checking and fixed:
+`Modules/DadJokes.lua` had a stray duplicate `}` at the end of the joke table from the content
+split, which would have prevented the file from loading.
 
 ### P1 — Blocking for this feature
 
@@ -74,14 +79,16 @@ while deleting it from another, which that rule would corrupt.
 
 ### P2 — Correctness / robustness
 
-**I-4. `GetContentPrefix` silently returns `""` for any module not in its hardcoded table.**
-`Database.lua:337` is keyed by moduleId with a special case for `guildquotes`. Any future
-module gets no prefix. The new module is only correct because we added a line.
+**I-4. `GetContentPrefix` silently returns `""` for any module not in its hardcoded table. — RESOLVED**
+`Database.lua:337` was keyed by moduleId with a special case for `guildquotes`. Any future
+module got no prefix. Now driven by a `PREFIX_TEMPLATES` table, so a new module only needs an
+entry there.
 
-**I-5. `MAX_CONTENT_ENTRY_LENGTH = 195` is hardcoded against the longest prefix.**
-It is derived from the Guild Quotes prefix (60 bytes). It is not recomputed when a prefix
-grows, so a longer prefix in any module can push `prefix + content` past the 255-byte chat
-limit and cause silent truncation (`SendContent` truncates rather than splitting).
+**I-5. `MAX_CONTENT_ENTRY_LENGTH = 195` is hardcoded against the longest prefix. — RESOLVED**
+It was derived from the Guild Quotes prefix (60 bytes) and was not recomputed when a prefix
+grew, so a longer prefix in any module could push `prefix + content` past the 255-byte chat
+limit and cause silent truncation. `Dadabase.MAX_PREFIX_LENGTH` is now computed from the
+longest template, and `Config.lua` derives the per-line cap from it.
 Also the editor says "max 195 **characters** per line" while the check is `#line > 195`
 (**bytes**) — non-ASCII entries are rejected earlier than the label implies.
 
@@ -136,10 +143,9 @@ tab side.
 - **I-15.** About tab text — **RESOLVED** (now lists Warcraft Jokes; the About and Interface
   Options descriptions mention Warcraft puns).
 - **I-16.** README — **RESOLVED** (feature list, per-database counts, architecture file list,
-  Saved Variables `migrations` entry, pooling note, version). Still open: the README claims
-  "Automatic message splitting for content over 255 characters / smart word-boundary
-  detection", which the code does not do — over-length lines are skipped on save and messages
-  are truncated on send.
+  Saved Variables `migrations` entry, pooling note, version, and the message-splitting claim
+  corrected: over-length lines are skipped on save and messages are truncated on send, there
+  is no multi-message splitting).
 - **I-17.** CHANGELOG — entry added for this branch.
 - **I-18.** Statistics list order is non-deterministic (`pairs` in `GetModuleStats`), so the
   Settings tab reshuffles rows between opens.
@@ -153,13 +159,13 @@ tab side.
 ## 3. Improvements catalog (not applied)
 
 **A. Content / database**
-1. **Per-module prefix template.** Move the prefix strings into `RegisterModule` config
-   (`prefixTemplate = "And now, for {article} {adjective} {noun}: "`) so new modules don't
-   need a branch in `Database.GetContentPrefix`. Fixes I-4 structurally.
+1. **[applied] Per-module prefix template.** Moved the prefix strings into a `PREFIX_TEMPLATES`
+   table so new modules do not need a branch in `Database.GetContentPrefix`. Fixes I-4
+   structurally.
 2. **Warcraft-flavoured adjective pool** for the WoW module (e.g. "Lag-terning", "punny",
    "lore-accurate", "tank-tastic") — the shared adjective list is generic.
-3. **Migration helper** for moved content (fixes I-3): carry `userDeletions` for moved items
-   from `dadjokes` to `warcraftjokes` on `dbVersion` bump.
+3. **[applied] Migration helper** for moved content (fixes I-3): `Migrations.lua` carries
+   `userDeletions` for moved items from `dadjokes` to `warcraftjokes` on first run.
 4. **Borderline jokes need a decision.** 26 jokes are WoW-adjacent but not clearly
    game-specific and were deliberately left in Dad Jokes. Recommend a second pass to confirm:
    Left in Dad Jokes: `Sighborg`, `psychic gnome`, `gnome king / amazing ruler`,
@@ -223,7 +229,7 @@ tab side.
 
 ---
 
-## 4. Performance — opportunities
+## 5. Performance — opportunities
 
 Honest answer: there is very little left. The addon has no `OnUpdate`, no per-frame work, no
 per-item allocation in the hot path, a minimal event set (4 events), and a cache for the only
@@ -255,38 +261,48 @@ instead of string concatenation in loops, tooltip handlers attached only on stat
 panel built lazily, `pcall` around `PlaySound`/`math.randomseed`, SavedVariables stores only
 deltas.
 
-## 5. Code cleanup / idiomatic Lua
+## 6. Code cleanup / idiomatic Lua
 
-1. **Normalize `GetChecked()` to a boolean.** `Config.lua` stores `self:GetChecked()` straight
+Status legend: **[applied]** in this pass, **[open]** left for in-game testing.
+
+1. **[applied] Normalize `GetChecked()` to a boolean.** `Config.lua` stores `self:GetChecked()` straight
    into SavedVariables. On some clients this returns `1`/`nil` rather than `true`/`false`, and
    `moduleDB.groups[group] == true` would then never match — a module could be enabled and
-   never trigger. Use `self:GetChecked() and true or false`. This is the highest-value cleanup
-   on this list because it is also a latent bug.
-2. **`local DB = Dadabase.DatabaseManager` reads like the SavedVariables global**
-   (`TarballsDadabaseDB`). Rename to `Manager` to remove the ambiguity.
-3. **`Config:BuildModuleContent` is ~300 lines in one function.** Split into
-   `buildWarning`, `buildGroups`, `buildPrefix`, `buildEditor`, `buildButtons`,
-   `buildControlState`. This is the single biggest maintainability win in the codebase.
-4. **`TriggerContent` and `SendManualContent` duplicate** prefix building, length validation,
-   truncation, and stats increment. Extract `Dadabase.BuildMessage(moduleId, content)` and
-   `Dadabase.RecordUsage(moduleId)`.
-5. **`GetManualChatChannel` duplicates the instance/raid/party branch** in `GetCurrentGroup`.
-   Share one helper that returns `(group, chatType)`.
-6. **`Config` pokes `DB.contentCache[moduleId] = nil` directly.** Add `DB:InvalidateCache(moduleId)`
-   so cache invalidation lives in one place (currently three).
-7. **`for moduleId, _ in pairs(...)`** → `for moduleId in pairs(...)`.
-8. **`msg:match("^cooldown%s+%d+$")` then `tonumber(msg:match("%d+"))`** matches twice; capture
-   once.
-9. **`RegisterModule` calls `error()` at load time.** A load-time error aborts the addon's
-   remaining files. Prefer `print` + `return` unless it is genuinely a programmer error.
-10. **`GetEffectiveContent` returns a shared mutable table.** It is documented as read-only but
-    nothing enforces it. Either add `DB:GetContentCount(moduleId)` for read-only callers
-    (Config stats, status, load message) or return a copy.
-11. **`SetControlState` mixes enable/disable, colouring, and tooltip wiring.** Splitting it
-    makes the module tab builder readable.
-12. **`MAX_CONTENT_ENTRY_LENGTH` should be derived** from the longest prefix across modules
-    rather than hardcoded to 195.
-13. **`GetTotalContentCount` and `GetContentSummary` overlap** — the total can be computed from
-    the summary.
-14. **`SOUNDKIT` numeric fallbacks** should be dropped or moved into a single table, not
-    scattered as literals in two files.
+   never trigger. `ToBoolean()` is now used at every write and read, and `GetRandomContent`
+   uses a truthy group test so a stored `1` still counts.
+2. **[applied]** `local DB = Dadabase.DatabaseManager` reads like the SavedVariables global**
+   (`TarballsDadabaseDB`). Renamed to `Manager` in `Config.lua` and `Database.lua`.
+3. **[applied]** `Config:BuildModuleContent` is ~500 lines in one function.** Split into widget
+   factories (`AddCheckbox`, `AddHelpText`, `AddSectionLabel`, `AddWarningBanner`) plus the
+   editor and control-state sections. The five near-identical checkbox blocks were the main
+   duplication.
+4. **[applied]** `TriggerContent` and `SendManualContent` duplicate** prefix building, length validation,
+   truncation, and stats increment. Extracted `BuildMessage`, `RecordUsage`, and
+   `PlaySelectedSound` in `Core.lua`.
+5. **[applied]** `GetManualChatChannel` duplicates the instance/raid/party branch** in `GetCurrentGroup`.
+   One helper now returns `(group, chatType)` for both paths.
+6. **[applied]** `Config` pokes `DB.contentCache[moduleId] = nil` directly.** `Manager:InvalidateCache(moduleId)`
+   is now the only place cache clearing happens.
+7. **[applied]** `for moduleId, _ in pairs(...)`** → `for moduleId in pairs(...)`.
+8. **[applied]** `msg:match("^cooldown%s+%d+$")` then `tonumber(msg:match("%d+"))`** matches twice; the
+   value is captured once.
+9. **[applied]** `RegisterModule` calls `error()` at load time.** A load-time error aborts the addon's
+   remaining files. Now prints and returns.
+10. **[applied]** `GetEffectiveContent` returns a shared mutable table.** Added
+    `Manager:GetContentCount(moduleId)` for read-only callers (Config stats, status, load
+    message). Counting still goes through the cache — see performance note 3.
+11. **[open]** `SetControlState` mixes enable/disable, colouring, and tooltip wiring.** Left as
+    is: splitting it would fragment the tooltip-state closure that stops handlers being
+    recreated on every refresh.
+12. **[applied]** `MAX_CONTENT_ENTRY_LENGTH` is derived** from the longest prefix template
+    (`Dadabase.MAX_PREFIX_LENGTH`), so adding a module cannot silently exceed the chat limit.
+13. **[open]** `GetTotalContentCount` and `GetContentSummary` overlap** — the total can be computed from
+    the summary. Left for now; both now share `GetContentCount`.
+14. **[partially applied]** `SOUNDKIT` numeric fallbacks** — the default sound is centralised as
+    `Dadabase.DefaultSound`. Per-option fallbacks stay as literals because each option needs a
+    different fallback id, and collapsing them to one value would collide with the explicit `888`
+    entry in the dropdown table.
+15. **[open] `string.trim` is not guaranteed on the WoW client.** `Core.lua`, `Config.lua`, and
+    `Database.lua` call `:trim()`. If the client does not provide it, every call raises
+    `attempt to call method 'trim' (a nil value)`. Needs in-game confirmation; if it is absent,
+    replace with `strtrim` or a local `trim()` helper in `Database.lua`.

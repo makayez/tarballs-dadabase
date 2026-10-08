@@ -6,7 +6,9 @@ Dadabase.VERSION = "0.6.0-alpha.1"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
-local MAX_CHAT_MESSAGE_LENGTH = 255
+-- Chat limits live in Database.lua so the content editor's per-line cap can be
+-- derived from the longest generated prefix instead of being hardcoded twice.
+local MAX_CHAT_MESSAGE_LENGTH = Dadabase.MAX_CHAT_MESSAGE_LENGTH
 
 -- ============================================================================
 -- Load Confirmation
@@ -157,7 +159,7 @@ if TarballsDadabaseDB.soundEnabled == nil then
 end
 
 if TarballsDadabaseDB.soundEffect == nil then
-    TarballsDadabaseDB.soundEffect = SOUNDKIT.LEVEL_UP or 888
+    TarballsDadabaseDB.soundEffect = Dadabase.DefaultSound
 end
 
 -- Usage statistics
@@ -173,52 +175,68 @@ local function DebugPrint(...)
     end
 end
 
+-- Returns the content group (used for module filtering) and the chat type to send
+-- to. Shared by the automatic trigger and the manual commands so the
+-- instance/raid/party branch exists once. chatType is nil when not in a group.
 local function GetCurrentGroup()
     -- Check if in instance group first (LFR, LFD, Ritual Sites, etc.)
     if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
         -- Distinguish LFR (raid) from LFG (party/scenario) by checking raid status
-        -- Returns the content group for module filtering, plus "instance" chat type
         if IsInRaid() then
-            return "raid", "instance"
-        else
-            return "party", "instance"
+            return "raid", "INSTANCE_CHAT"
         end
+        return "party", "INSTANCE_CHAT"
     elseif IsInRaid() then
-        return "raid", nil
+        return "raid", "RAID"
     elseif IsInGroup() then
-        return "party", nil
+        return "party", "PARTY"
     end
     return nil, nil
 end
 
-local function SendContent(content, group)
+-- Prefix + content, validated against the single-message chat limit.
+-- Returns the message and whether it had to be truncated.
+local function BuildMessage(moduleId, content)
+    local message = Dadabase.DatabaseManager:GetContentPrefix(moduleId) .. content
+    if #message > MAX_CHAT_MESSAGE_LENGTH then
+        -- UTF-8 safe, so we never split a multibyte glyph
+        return Dadabase.DatabaseManager:TruncateToBytes(message, MAX_CHAT_MESSAGE_LENGTH), true
+    end
+    return message, false
+end
+
+local function RecordUsage(moduleId)
+    TarballsDadabaseDB.stats[moduleId] = (TarballsDadabaseDB.stats[moduleId] or 0) + 1
+end
+
+local function PlaySelectedSound()
+    if not TarballsDadabaseDB.soundEnabled or not TarballsDadabaseDB.soundEffect then
+        return
+    end
+    local success, err = pcall(PlaySound, TarballsDadabaseDB.soundEffect)
+    if not success then
+        DebugPrint("Failed to play sound: " .. tostring(err))
+    end
+end
+
+local function SendContent(message, chatType)
     if pendingMessage then
         DebugPrint("Message already pending, skipping")
         return
     end
 
-    -- Validate message length (UTF-8 safe, so we never split a multibyte glyph)
-    if #content > MAX_CHAT_MESSAGE_LENGTH then
-        DebugPrint("Message too long (" .. #content .. " bytes), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
-        content = Dadabase.DatabaseManager:TruncateToBytes(content, MAX_CHAT_MESSAGE_LENGTH)
-    end
-
     pendingMessage = true
-    DebugPrint("Sending content to " .. (group or "local") .. " (" .. #content .. " bytes)")
+    DebugPrint("Sending content to " .. (chatType or "local") .. " (" .. #message .. " bytes)")
 
     -- Delay message to avoid protected context (ADDON_ACTION_FORBIDDEN)
     -- 0.5s is needed to reliably escape the protected frame; 0.1s was insufficient for party and raid wipes
     C_Timer.After(0.5, function()
-        if group == "instance" then
-            SendChatMessage(content, "INSTANCE_CHAT")
-        elseif group == "raid" then
-            SendChatMessage(content, "RAID")
-        elseif group == "party" then
-            SendChatMessage(content, "PARTY")
+        if chatType then
+            SendChatMessage(message, chatType)
         else
-            -- Unreachable by design: the sole caller (TriggerContent) only passes
-            -- "instance", "raid", or "party". Kept as a defensive fallback.
-            print(content)
+            -- Defensive fallback: the automatic path always has a group, so chatType
+            -- is set. Kept so a nil chat type can never silently drop the message.
+            print(message)
         end
         pendingMessage = false
     end)
@@ -257,22 +275,15 @@ local function TriggerContent()
 
     if content then
         lastContentTime = now
-        local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
-        SendContent(prefix .. content, chatType or group)
 
-        -- Track statistics
-        if not TarballsDadabaseDB.stats[moduleId] then
-            TarballsDadabaseDB.stats[moduleId] = 0
+        local message, truncated = BuildMessage(moduleId, content)
+        if truncated then
+            DebugPrint("Message truncated to " .. MAX_CHAT_MESSAGE_LENGTH .. " bytes")
         end
-        TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
 
-        -- Play sound effect if enabled
-        if TarballsDadabaseDB.soundEnabled and TarballsDadabaseDB.soundEffect then
-            local success, err = pcall(PlaySound, TarballsDadabaseDB.soundEffect)
-            if not success then
-                DebugPrint("Failed to play sound: " .. tostring(err))
-            end
-        end
+        SendContent(message, chatType)
+        RecordUsage(moduleId)
+        PlaySelectedSound()
     else
         DebugPrint("  BLOCKED: No matching content found")
     end
@@ -302,8 +313,9 @@ frame:SetScript("OnEvent", function(_, event, ...)
             -- Initialize database
             Dadabase.DatabaseManager:Initialize()
 
-            -- Register with interface options
+            -- Build module tabs now that per-module SavedVariables defaults exist
             if Dadabase.Config then
+                Dadabase.Config:BuildTabs()
                 Dadabase.Config:RegisterInterfaceOptions()
             end
 
@@ -394,13 +406,9 @@ local function SendManualContent(chatChannel)
         return
     end
 
-    local prefix = Dadabase.DatabaseManager:GetContentPrefix(moduleId)
-    local message = prefix .. content
-
-    -- Validate message length (UTF-8 safe, so we never split a multibyte glyph)
-    if #message > MAX_CHAT_MESSAGE_LENGTH then
-        print("Warning: Message too long (" .. #message .. " bytes), truncating to " .. MAX_CHAT_MESSAGE_LENGTH)
-        message = Dadabase.DatabaseManager:TruncateToBytes(message, MAX_CHAT_MESSAGE_LENGTH)
+    local message, truncated = BuildMessage(moduleId, content)
+    if truncated then
+        print("Warning: Message too long, truncated to " .. MAX_CHAT_MESSAGE_LENGTH .. " bytes")
     end
 
     -- Commit the cooldown only once we are about to send, so a "no content"
@@ -410,23 +418,7 @@ local function SendManualContent(chatChannel)
     -- Send directly without timers to avoid taint
     SendChatMessage(message, chatChannel)
 
-    -- Track statistics
-    if not TarballsDadabaseDB.stats[moduleId] then
-        TarballsDadabaseDB.stats[moduleId] = 0
-    end
-    TarballsDadabaseDB.stats[moduleId] = TarballsDadabaseDB.stats[moduleId] + 1
-end
-
-local function GetManualChatChannel()
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        return "INSTANCE_CHAT"
-    elseif IsInRaid() then
-        return "RAID"
-    elseif IsInGroup() then
-        return "PARTY"
-    else
-        return "SAY"
-    end
+    RecordUsage(moduleId)
 end
 
 -- ============================================================================
@@ -438,6 +430,8 @@ SLASH_TARBALLSDADABASE1 = "/dadabase"
 SlashCmdList["TARBALLSDADABASE"] = function(msg)
     msg = (msg or ""):lower():trim()
 
+    local cooldownValue = msg:match("^cooldown%s+(%d+)$")
+
     if msg == "" then
         if Dadabase.Config then
             Dadabase.Config:Toggle()
@@ -448,7 +442,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
 
     elseif msg == "on" then
         -- Enable all modules
-        for moduleId, _ in pairs(Dadabase.DatabaseManager.modules) do
+        for moduleId in pairs(Dadabase.DatabaseManager.modules) do
             Dadabase.DatabaseManager:SetModuleEnabled(moduleId, true)
         end
         print("Tarball's Dadabase enabled (all modules).")
@@ -456,7 +450,7 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
 
     elseif msg == "off" then
         -- Disable all modules
-        for moduleId, _ in pairs(Dadabase.DatabaseManager.modules) do
+        for moduleId in pairs(Dadabase.DatabaseManager.modules) do
             Dadabase.DatabaseManager:SetModuleEnabled(moduleId, false)
         end
         print("Tarball's Dadabase disabled (all modules).")
@@ -466,14 +460,15 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         TarballsDadabaseDB.debug = not TarballsDadabaseDB.debug
         print("Tarball's Dadabase debug mode " .. (TarballsDadabaseDB.debug and "enabled" or "disabled") .. ".")
 
-    elseif msg:match("^cooldown%s+%d+$") then
-        local value = math.min(tonumber(msg:match("%d+")), 600)
+    elseif cooldownValue then
+        local value = math.min(tonumber(cooldownValue), 600)
         TarballsDadabaseDB.cooldown = value
         print("Tarball's Dadabase cooldown set to " .. value .. " seconds.")
         if Dadabase.Config then Dadabase.Config:Refresh() end
 
     elseif msg == "say" then
-        SendManualContent(GetManualChatChannel())
+        local _, chatType = GetCurrentGroup()
+        SendManualContent(chatType or "SAY")
 
     elseif msg == "guild" then
         if not IsInGuild() then
@@ -500,9 +495,9 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
         for moduleId, module in pairs(Dadabase.DatabaseManager.modules) do
             local moduleDB = TarballsDadabaseDB.modules[moduleId]
             if moduleDB then
-                local content = Dadabase.DatabaseManager:GetEffectiveContent(moduleId)
+                local count = Dadabase.DatabaseManager:GetContentCount(moduleId)
                 local stats = TarballsDadabaseDB.stats[moduleId] or 0
-                table.insert(statusLines, "  [" .. module.name .. "] " .. (moduleDB.enabled and "ON" or "OFF") .. " - " .. #content .. " items, " .. stats .. " told")
+                table.insert(statusLines, "  [" .. module.name .. "] " .. (moduleDB.enabled and "ON" or "OFF") .. " - " .. count .. " items, " .. stats .. " told")
             end
         end
 

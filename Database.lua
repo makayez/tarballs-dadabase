@@ -3,13 +3,17 @@
 Dadabase = Dadabase or {}
 Dadabase.DatabaseManager = {}
 
-local DB = Dadabase.DatabaseManager
+local Manager = Dadabase.DatabaseManager
 
 -- Registered modules
-DB.modules = {}
+Manager.modules = {}
 
 -- Content cache for performance (especially with 1100+ jokes)
-DB.contentCache = {}
+Manager.contentCache = {}
+
+-- Registration order, kept separately from the keyed table so the UI can iterate in
+-- a stable order (pairs over a string-keyed table has no defined order).
+Manager.moduleOrder = {}
 
 -- Immutable constants for default prefix generation. Hoisted to file scope so
 -- they are allocated once at load instead of rebuilt on every GetContentPrefix call.
@@ -58,6 +62,34 @@ local PREFIX_ADJECTIVES = {
 
 local PREFIX_VOWELS = {a = true, e = true, i = true, o = true, u = true}
 
+-- Prefix templates as data rather than a branch per module in GetContentPrefix:
+-- a new module only needs an entry here, and the longest possible prefix can be
+-- measured so the content editor's per-line cap is derived instead of hardcoded.
+local PREFIX_TEMPLATES = {
+    dadjokes = "And now, for {article} {adjective} dad joke: ",
+    warcraftjokes = "And now, for {article} {adjective} Warcraft joke: ",
+    demotivational = "And now, for {article} {adjective} motivational quote: ",
+    guildquotes = "And now, for some {adjective} famous words from a friend: "
+}
+
+Dadabase.MAX_CHAT_MESSAGE_LENGTH = 255
+
+-- Longest prefix any module can generate (longest adjective, longest article).
+local longestAdjective = 0
+for _, adjective in ipairs(PREFIX_ADJECTIVES) do
+    longestAdjective = math.max(longestAdjective, #adjective)
+end
+
+Dadabase.MAX_PREFIX_LENGTH = 0
+for _, template in pairs(PREFIX_TEMPLATES) do
+    local sample = template:gsub("{article}", "an"):gsub("{adjective}", string.rep("x", longestAdjective))
+    Dadabase.MAX_PREFIX_LENGTH = math.max(Dadabase.MAX_PREFIX_LENGTH, #sample)
+end
+
+-- SOUNDKIT fields can be nil on some clients/patches, so keep one fallback value
+-- instead of scattering numeric literals across files.
+Dadabase.DefaultSound = SOUNDKIT.LEVEL_UP or 888
+
 -- ============================================================================
 -- Utility Functions
 -- ============================================================================
@@ -65,7 +97,7 @@ local PREFIX_VOWELS = {a = true, e = true, i = true, o = true, u = true}
 -- Truncate a string to at most maxBytes bytes without splitting a multibyte
 -- UTF-8 codepoint. Lua's # and string.sub operate on bytes; cutting mid-sequence
 -- would leave an invalid trailing byte that renders as a garbled glyph in chat.
-function DB:TruncateToBytes(text, maxBytes)
+function Manager:TruncateToBytes(text, maxBytes)
     if not text then
         return ""
     end
@@ -88,7 +120,7 @@ function DB:TruncateToBytes(text, maxBytes)
 end
 
 -- Sanitize WoW formatting codes from user input
-function DB:SanitizeText(text)
+function Manager:SanitizeText(text)
     if not text or text == "" then
         return ""
     end
@@ -110,9 +142,12 @@ end
 -- Module Registration
 -- ============================================================================
 
-function DB:RegisterModule(moduleId, config)
+function Manager:RegisterModule(moduleId, config)
     if self.modules[moduleId] then
-        error("Module '" .. moduleId .. "' already registered!")
+        -- A load-time error aborts the remaining addon files, so report and skip
+        -- instead of raising.
+        print("Tarball's Dadabase: module '" .. moduleId .. "' is already registered, skipping duplicate registration.")
+        return
     end
 
     self.modules[moduleId] = {
@@ -122,13 +157,15 @@ function DB:RegisterModule(moduleId, config)
         dbVersion = config.dbVersion or 1,
         defaultSettings = config.defaultSettings or {}
     }
+
+    table.insert(self.moduleOrder, moduleId)
 end
 
 -- ============================================================================
 -- Database Initialization
 -- ============================================================================
 
-function DB:Initialize()
+function Manager:Initialize()
     TarballsDadabaseDB = TarballsDadabaseDB or {}
     TarballsDadabaseDB.modules = TarballsDadabaseDB.modules or {}
 
@@ -147,7 +184,7 @@ function DB:Initialize()
         end
 
         if not moduleDB then
-            -- First install - create module DB with defaults
+            -- First install - create the module's saved-variable entry with defaults
             TarballsDadabaseDB.modules[moduleId] = {
                 enabled = module.defaultSettings.enabled or false,
                 groups = module.defaultSettings.groups or {},
@@ -218,7 +255,7 @@ function DB:Initialize()
             moduleDB.dbVersion = module.dbVersion
 
             -- Invalidate cache so the next read rebuilds effective content lazily.
-            self.contentCache[moduleId] = nil
+            self:InvalidateCache(moduleId)
 
             if TarballsDadabaseDB.debug then
                 -- Materialize the count only when debug is on (avoids building and
@@ -246,7 +283,7 @@ end
 -- plus user additions). The returned table is the SHARED cached instance and
 -- MUST be treated as read-only -- mutating it would corrupt the cache for all
 -- subsequent reads until the next invalidation.
-function DB:GetEffectiveContent(moduleId)
+function Manager:GetEffectiveContent(moduleId)
     -- Return cached content if available
     if self.contentCache[moduleId] then
         return self.contentCache[moduleId]
@@ -291,27 +328,38 @@ function DB:GetEffectiveContent(moduleId)
     return effective
 end
 
-function DB:GetTotalContentCount()
+-- Invalidate the cached effective content for a module. Centralised so cache
+-- clearing lives in one place.
+function Manager:InvalidateCache(moduleId)
+    self.contentCache[moduleId] = nil
+end
+
+-- Read-only count for callers that only need a number (stats, status, load
+-- message). Keeps callers from holding the shared cached table.
+function Manager:GetContentCount(moduleId)
+    return #self:GetEffectiveContent(moduleId)
+end
+
+function Manager:GetTotalContentCount()
     local total = 0
     if not self.modules then
         return 0
     end
-    for moduleId, _ in pairs(self.modules) do
-        local content = self:GetEffectiveContent(moduleId)
-        total = total + #content
+    for moduleId in pairs(self.modules) do
+        total = total + self:GetContentCount(moduleId)
     end
     return total
 end
 
 -- Per-module content counts, sorted by module name so the output is stable between
 -- logins. Modules with no content are omitted (empty databases are not advertised).
-function DB:GetContentSummary()
+function Manager:GetContentSummary()
     local summary = {}
     if not self.modules then
         return summary
     end
     for moduleId, module in pairs(self.modules) do
-        local count = #self:GetEffectiveContent(moduleId)
+        local count = self:GetContentCount(moduleId)
         if count > 0 then
             table.insert(summary, { moduleId = moduleId, name = module.name, count = count })
         end
@@ -320,7 +368,7 @@ function DB:GetContentSummary()
     return summary
 end
 
-function DB:GetContentPrefix(moduleId)
+function Manager:GetContentPrefix(moduleId)
     -- Check if prefix is enabled for this module
     local moduleDB = TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId]
 
@@ -346,25 +394,24 @@ function DB:GetContentPrefix(moduleId)
         return ""
     end
 
-    local randomAdjective = PREFIX_ADJECTIVES[math.random(#PREFIX_ADJECTIVES)]
-
-    if moduleId == "guildquotes" then
-        return "And now, for some " .. randomAdjective .. " famous words from a friend: "
+    local template = PREFIX_TEMPLATES[moduleId]
+    if not template then
+        return ""
     end
+
+    local randomAdjective = PREFIX_ADJECTIVES[math.random(#PREFIX_ADJECTIVES)]
 
     -- Determine a/an based on first letter
     local firstLetter = randomAdjective:sub(1, 1):lower()
     local article = PREFIX_VOWELS[firstLetter] and "an" or "a"
 
-    local prefixes = {
-        dadjokes = "And now, for " .. article .. " " .. randomAdjective .. " dad joke: ",
-        warcraftjokes = "And now, for " .. article .. " " .. randomAdjective .. " Warcraft joke: ",
-        demotivational = "And now, for " .. article .. " " .. randomAdjective .. " motivational quote: "
-    }
-    return prefixes[moduleId] or ""
+    return template:gsub("{article}", article):gsub("{adjective}", randomAdjective)
 end
 
-function DB:GetRandomContent(group, ignoreTriggers)
+-- Reused across calls so the pick allocates nothing per trigger.
+local matchingScratch = {}
+
+function Manager:GetRandomContent(group, ignoreTriggers)
     -- Check if database is initialized
     if not TarballsDadabaseDB or not TarballsDadabaseDB.modules then
         return nil, nil
@@ -376,16 +423,19 @@ function DB:GetRandomContent(group, ignoreTriggers)
     -- distribution-equivalent to a flat uniform pick over all items
     -- (P(item) = (weight_m / total) * (1 / weight_m) = 1 / total) but allocates
     -- nothing per item and reuses the cached content arrays directly.
-    local matching = {}
+    local matching = matchingScratch
+    table.wipe(matching)
     local total = 0
 
-    for moduleId, _ in pairs(self.modules) do
+    for moduleId in pairs(self.modules) do
         local moduleDB = TarballsDadabaseDB.modules[moduleId]
 
         if moduleDB and moduleDB.enabled then
             -- Manual commands ignore group settings; automatic triggers require a
-            -- group match (the wipe trigger is implicit when the module is enabled)
-            local shouldInclude = ignoreTriggers or (moduleDB.groups[group] == true)
+            -- group match (the wipe trigger is implicit when the module is enabled).
+            -- Truthy test rather than `== true` so a stored 1 from an older client
+            -- still counts as enabled.
+            local shouldInclude = ignoreTriggers or moduleDB.groups[group]
 
             if shouldInclude then
                 local content = self:GetEffectiveContent(moduleId)
@@ -415,38 +465,38 @@ function DB:GetRandomContent(group, ignoreTriggers)
     return nil, nil
 end
 
-function DB:GetModuleSettings(moduleId)
+function Manager:GetModuleSettings(moduleId)
     if not TarballsDadabaseDB or not TarballsDadabaseDB.modules then
         return nil
     end
     return TarballsDadabaseDB.modules[moduleId]
 end
 
-function DB:SetModuleEnabled(moduleId, enabled)
+function Manager:SetModuleEnabled(moduleId, enabled)
     if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
         TarballsDadabaseDB.modules[moduleId].enabled = enabled
     end
 end
 
-function DB:SetModuleGroup(moduleId, group, enabled)
+function Manager:SetModuleGroup(moduleId, group, enabled)
     if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
         TarballsDadabaseDB.modules[moduleId].groups[group] = enabled
     end
 end
 
-function DB:SetPrefixEnabled(moduleId, enabled)
+function Manager:SetPrefixEnabled(moduleId, enabled)
     if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
         TarballsDadabaseDB.modules[moduleId].prefixEnabled = enabled
     end
 end
 
-function DB:SetUseCustomPrefix(moduleId, enabled)
+function Manager:SetUseCustomPrefix(moduleId, enabled)
     if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
         TarballsDadabaseDB.modules[moduleId].useCustomPrefix = enabled
     end
 end
 
-function DB:SetCustomPrefix(moduleId, prefix)
+function Manager:SetCustomPrefix(moduleId, prefix)
     if TarballsDadabaseDB and TarballsDadabaseDB.modules and TarballsDadabaseDB.modules[moduleId] then
         -- Sanitize and validate prefix
         prefix = self:SanitizeText(prefix or "")
@@ -460,7 +510,7 @@ function DB:SetCustomPrefix(moduleId, prefix)
     end
 end
 
-function DB:SetEffectiveContent(moduleId, newContent)
+function Manager:SetEffectiveContent(moduleId, newContent)
     -- Validate inputs
     if type(moduleId) ~= "string" then
         error("SetEffectiveContent: moduleId must be a string, got " .. type(moduleId))
@@ -515,5 +565,5 @@ function DB:SetEffectiveContent(moduleId, newContent)
     end
 
     -- Invalidate cache since content changed
-    self.contentCache[moduleId] = nil
+    self:InvalidateCache(moduleId)
 end

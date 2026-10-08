@@ -4,7 +4,13 @@ Dadabase = Dadabase or {}
 Dadabase.Config = {}
 
 local Config = Dadabase.Config
-local DB = Dadabase.DatabaseManager
+local Manager = Dadabase.DatabaseManager
+
+-- WoW checkboxes return 1/nil on some clients rather than true/false. Storing real
+-- booleans keeps SavedVariables clean and comparisons predictable.
+local function ToBoolean(value)
+    return value and true or false
+end
 
 -- Constants
 local CONFIG_PANEL_WIDTH = 700
@@ -20,7 +26,7 @@ local TAB_START_Y = -45
 -- 255-byte chat limit minus the longest generated prefix (the Guild Quotes
 -- prefix reaches 60 bytes with "extraordinary"), so a max-length entry plus its
 -- prefix still fits in one chat message without truncation.
-local MAX_CONTENT_ENTRY_LENGTH = 195
+local MAX_CONTENT_ENTRY_LENGTH = Dadabase.MAX_CHAT_MESSAGE_LENGTH - Dadabase.MAX_PREFIX_LENGTH
 local EDITOR_MIN_HEIGHT = 180
 local EDITOR_LINE_HEIGHT = 14
 local EDITOR_WIDTH = 450
@@ -31,7 +37,7 @@ local STATUS_CLEAR_DELAY = 3
 
 -- Sound effect options
 local SOUND_OPTIONS = {
-    {text = "Level Up", value = SOUNDKIT.LEVEL_UP or 888},
+    {text = "Level Up", value = SOUNDKIT.LEVEL_UP or Dadabase.DefaultSound},
     {text = "Ready Check", value = SOUNDKIT.READY_CHECK or 8960},
     {text = "Raid Warning", value = SOUNDKIT.RAID_WARNING or 8959},
     {text = "Alarm Clock", value = SOUNDKIT.ALARM_CLOCK_WARNING_3 or 12867},
@@ -228,9 +234,9 @@ local function CreateConfigPanel()
     globalEnableCheckbox.text = globalEnableCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     globalEnableCheckbox.text:SetPoint("LEFT", globalEnableCheckbox, "RIGHT", 5, 0)
     globalEnableCheckbox.text:SetText("Enable Addon")
-    globalEnableCheckbox:SetChecked(TarballsDadabaseDB.globalEnabled)
+    globalEnableCheckbox:SetChecked(ToBoolean(TarballsDadabaseDB.globalEnabled))
     globalEnableCheckbox:SetScript("OnClick", function(self)
-        TarballsDadabaseDB.globalEnabled = self:GetChecked()
+        TarballsDadabaseDB.globalEnabled = ToBoolean(self:GetChecked())
         -- Refresh all module tabs to update their disabled state
         for _, tab in ipairs(tabs) do
             if tab.RefreshControls then
@@ -256,16 +262,15 @@ local function CreateConfigPanel()
     local function GetModuleStats()
         local stats = {}
         -- Check if database is initialized
-        if not DB.modules or not TarballsDadabaseDB or not TarballsDadabaseDB.stats then
+        if not Manager.modules or not TarballsDadabaseDB or not TarballsDadabaseDB.stats then
             return stats
         end
 
-        for moduleId, module in pairs(DB.modules) do
-            local content = DB:GetEffectiveContent(moduleId)
+        for moduleId, module in pairs(Manager.modules) do
             local told = TarballsDadabaseDB.stats[moduleId] or 0
             stats[moduleId] = {
                 name = module.name,
-                count = #content,
+                count = Manager:GetContentCount(moduleId),
                 told = told
             }
         end
@@ -346,9 +351,9 @@ local function CreateConfigPanel()
     soundCheckbox.text = soundCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     soundCheckbox.text:SetPoint("LEFT", soundCheckbox, "RIGHT", 5, 0)
     soundCheckbox.text:SetText("Play sound effect when content triggers")
-    soundCheckbox:SetChecked(TarballsDadabaseDB.soundEnabled)
+    soundCheckbox:SetChecked(ToBoolean(TarballsDadabaseDB.soundEnabled))
     soundCheckbox:SetScript("OnClick", function(self)
-        TarballsDadabaseDB.soundEnabled = self:GetChecked()
+        TarballsDadabaseDB.soundEnabled = ToBoolean(self:GetChecked())
     end)
     yOffset = yOffset - 35
 
@@ -399,11 +404,11 @@ local function CreateConfigPanel()
 
     -- Re-apply saved-variable values into the settings widgets. Called on panel
     -- open (and after slash commands) so the displayed state never drifts from
-    -- the DB when both the panel and slash commands write the same settings.
+    -- the database when both the panel and slash commands write the same settings.
     settingsTab.SyncFromDB = function()
-        globalEnableCheckbox:SetChecked(TarballsDadabaseDB.globalEnabled)
+        globalEnableCheckbox:SetChecked(ToBoolean(TarballsDadabaseDB.globalEnabled))
         cooldownSlider:SetValue(TarballsDadabaseDB.cooldown)  -- fires OnValueChanged, which updates valueText
-        soundCheckbox:SetChecked(TarballsDadabaseDB.soundEnabled)
+        soundCheckbox:SetChecked(ToBoolean(TarballsDadabaseDB.soundEnabled))
 
         local soundName = "Level Up"
         for _, option in ipairs(SOUND_OPTIONS) do
@@ -431,7 +436,7 @@ local function CreateConfigPanel()
         moduleTab.buildContent(moduleTabFrame, moduleTab.moduleId)
     end
 
-    -- Expose tabs so Config:Refresh() can resync widgets from the DB on open
+    -- Expose tabs so Config:Refresh() can resync widgets from the database on open
     panel.tabs = tabs
 
     -- Show about tab by default
@@ -444,19 +449,45 @@ end
 -- Module Content Builder (shared for all modules)
 -- ============================================================================
 
-function Config:BuildModuleContent(container, moduleId)
-    local moduleDB = DB:GetModuleSettings(moduleId)
-    if not moduleDB then return end
+-- Widget factories shared by the module tabs. Keeping creation in small helpers lets
+-- BuildModuleContent read as a list of sections instead of one long block.
+local function AddSectionLabel(container, yOffset, text)
+    local label = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    label:SetPoint("TOPLEFT", 10, yOffset)
+    label:SetText(text)
+    return label
+end
 
-    local module = DB.modules[moduleId]
-    if not module then return end
+local function AddHelpText(container, yOffset, text)
+    local help = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    help:SetPoint("TOPLEFT", 20, yOffset)
+    help:SetPoint("TOPRIGHT", -10, yOffset)
+    help:SetJustifyH("LEFT")
+    help:SetText(text)
+    return help
+end
 
-    local yOffset = -10
+local function AddCheckbox(container, x, yOffset, label, value, onCheck)
+    local checkbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
+    checkbox:SetPoint("TOPLEFT", x, yOffset)
+    checkbox.text = checkbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    checkbox.text:SetPoint("LEFT", checkbox, "RIGHT", 5, 0)
+    checkbox.text:SetText(label)
+    checkbox:SetChecked(ToBoolean(value))
 
-    -- Global disabled warning (shown when addon is globally disabled)
+    if onCheck then
+        checkbox:SetScript("OnClick", function(self)
+            onCheck(ToBoolean(self:GetChecked()))
+        end)
+    end
+
+    return checkbox
+end
+
+local function AddWarningBanner(container)
     local warningFrame = CreateFrame("Frame", nil, container, "BackdropTemplate")
-    warningFrame:SetPoint("TOPLEFT", 10, yOffset)
-    warningFrame:SetPoint("TOPRIGHT", -10, yOffset)
+    warningFrame:SetPoint("TOPLEFT", 10, -10)
+    warningFrame:SetPoint("TOPRIGHT", -10, -10)
     warningFrame:SetHeight(40)
     warningFrame:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -474,122 +505,72 @@ function Config:BuildModuleContent(container, moduleId)
     warningText:SetTextColor(1, 0.3, 0.3)
     warningText:SetText("WARNING: Addon is globally disabled in Settings tab - this module will not trigger")
 
-    -- Hide warning by default, will show if global disabled
+    -- Hidden by default; shown only when the addon is globally disabled
     warningFrame:Hide()
+    return warningFrame
+end
 
-    yOffset = yOffset - 50
+function Config:BuildModuleContent(container, moduleId)
+    local moduleDB = Manager:GetModuleSettings(moduleId)
+    if not moduleDB then return end
 
-    -- Enable checkbox
-    local enableCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    enableCheckbox:SetPoint("TOPLEFT", 10, yOffset)
-    enableCheckbox.text = enableCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    enableCheckbox.text:SetPoint("LEFT", enableCheckbox, "RIGHT", 5, 0)
-    enableCheckbox.text:SetText("Enable " .. module.name)
-    enableCheckbox:SetChecked(moduleDB.enabled)
+    local module = Manager.modules[moduleId]
+    if not module then return end
 
-    yOffset = yOffset - 40
+    local warningFrame = AddWarningBanner(container)
 
-    -- Groups section (triggers on wipes when enabled)
-    local groupsLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    groupsLabel:SetPoint("TOPLEFT", 10, yOffset)
-    groupsLabel:SetText("Trigger on wipes in:")
-    yOffset = yOffset - 30
+    -- Enable checkbox stays interactive even when the addon is globally disabled
+    local enableCheckbox = AddCheckbox(container, 10, -60, "Enable " .. module.name, moduleDB.enabled)
 
-    -- Raid group
-    local raidCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    raidCheckbox:SetPoint("TOPLEFT", 20, yOffset)
-    raidCheckbox.text = raidCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    raidCheckbox.text:SetPoint("LEFT", raidCheckbox, "RIGHT", 5, 0)
-    raidCheckbox.text:SetText("Raids (includes LFR)")
-    raidCheckbox:SetChecked(moduleDB.groups.raid == true)
-    raidCheckbox:SetScript("OnClick", function(self)
-        DB:SetModuleGroup(moduleId, "raid", self:GetChecked())
+    AddSectionLabel(container, -100, "Trigger on wipes in:")
+
+    local raidCheckbox = AddCheckbox(container, 20, -130, "Raids (includes LFR)", moduleDB.groups.raid, function(value)
+        Manager:SetModuleGroup(moduleId, "raid", value)
     end)
-
-    -- Party group (same row, to the right)
-    local partyCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    partyCheckbox:SetPoint("TOPLEFT", 200, yOffset)
-    partyCheckbox.text = partyCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    partyCheckbox.text:SetPoint("LEFT", partyCheckbox, "RIGHT", 5, 0)
-    partyCheckbox.text:SetText("Parties (includes LFG)")
-    partyCheckbox:SetChecked(moduleDB.groups.party == true)
-    partyCheckbox:SetScript("OnClick", function(self)
-        DB:SetModuleGroup(moduleId, "party", self:GetChecked())
+    local partyCheckbox = AddCheckbox(container, 200, -130, "Parties (includes LFG)", moduleDB.groups.party, function(value)
+        Manager:SetModuleGroup(moduleId, "party", value)
     end)
-    yOffset = yOffset - 30
 
     -- Pooling help line: enabled modules are combined into one random pool, which is
     -- otherwise invisible to the user (they may expect this module alone to be used).
-    local poolHelp = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    poolHelp:SetPoint("TOPLEFT", 20, yOffset)
-    poolHelp:SetPoint("TOPRIGHT", -10, yOffset)
-    poolHelp:SetJustifyH("LEFT")
-    poolHelp:SetText("Content is pooled across all enabled modules - one item is picked at random from the combined pool.")
-    yOffset = yOffset - 35
+    AddHelpText(container, -160, "Content is pooled across all enabled modules - one item is picked at random from the combined pool.")
 
-    -- Prefix configuration section
-    local prefixLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    prefixLabel:SetPoint("TOPLEFT", 10, yOffset)
-    prefixLabel:SetText("Message Prefix:")
-    yOffset = yOffset - 30
+    AddSectionLabel(container, -195, "Message Prefix:")
 
-    -- Enable prefix checkbox
-    local prefixCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    prefixCheckbox:SetPoint("TOPLEFT", 20, yOffset)
-    prefixCheckbox.text = prefixCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    prefixCheckbox.text:SetPoint("LEFT", prefixCheckbox, "RIGHT", 5, 0)
-    prefixCheckbox.text:SetText("Enable prefix")
-    prefixCheckbox:SetChecked(moduleDB.prefixEnabled == true)
-    yOffset = yOffset - 30
+    -- Forward declaration: the prefix checkbox needs it, but it closes over widgets
+    -- that do not exist yet.
+    local UpdatePrefixControls
 
-    -- Use custom prefix checkbox
-    local customPrefixCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
-    customPrefixCheckbox:SetPoint("TOPLEFT", 20, yOffset)
-    customPrefixCheckbox.text = customPrefixCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    customPrefixCheckbox.text:SetPoint("LEFT", customPrefixCheckbox, "RIGHT", 5, 0)
-    customPrefixCheckbox.text:SetText("Use custom prefix:")
-    customPrefixCheckbox:SetChecked(moduleDB.useCustomPrefix == true)
-    customPrefixCheckbox:SetScript("OnClick", function(self)
-        DB:SetUseCustomPrefix(moduleId, self:GetChecked())
+    local prefixCheckbox = AddCheckbox(container, 20, -225, "Enable prefix", moduleDB.prefixEnabled, function(value)
+        Manager:SetPrefixEnabled(moduleId, value)
+        UpdatePrefixControls()
     end)
-    yOffset = yOffset - 30
+    local customPrefixCheckbox = AddCheckbox(container, 20, -255, "Use custom prefix:", moduleDB.useCustomPrefix, function(value)
+        Manager:SetUseCustomPrefix(moduleId, value)
+    end)
 
-    -- Custom prefix input
     local prefixInput = CreateFrame("EditBox", nil, container, "InputBoxTemplate")
-    prefixInput:SetPoint("TOPLEFT", 40, yOffset)
+    prefixInput:SetPoint("TOPLEFT", 40, -285)
     prefixInput:SetSize(440, 20)
     prefixInput:SetAutoFocus(false)
     prefixInput:SetMaxLetters(50)
     prefixInput:SetText(moduleDB.customPrefix or "")
     prefixInput:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
-        DB:SetCustomPrefix(moduleId, self:GetText())
+        Manager:SetCustomPrefix(moduleId, self:GetText())
     end)
     prefixInput:SetScript("OnEscapePressed", function(self)
         self:ClearFocus()
     end)
     prefixInput:SetScript("OnEditFocusLost", function(self)
-        DB:SetCustomPrefix(moduleId, self:GetText())
+        Manager:SetCustomPrefix(moduleId, self:GetText())
     end)
 
-    -- Prefix help text
-    local prefixHelp = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    prefixHelp:SetPoint("TOPLEFT", 40, yOffset - 20)
-    prefixHelp:SetPoint("TOPRIGHT", -10, yOffset - 20)
-    prefixHelp:SetJustifyH("LEFT")
-    prefixHelp:SetText("Custom prefix will be added before each message (max 50 characters). Press Enter to save.")
-    yOffset = yOffset - 65
+    local prefixHelp = AddHelpText(container, -305, "Custom prefix will be added before each message (max 50 characters). Press Enter to save.")
 
-    -- Function to update custom prefix controls based on prefix enabled state
-    local function UpdatePrefixControls()
-        -- Custom prefix controls should only be enabled if:
-        -- 1. Global is enabled, AND
-        -- 2. Module is enabled, AND
-        -- 3. Prefix is enabled
-        local globalEnabled = TarballsDadabaseDB.globalEnabled
-        local moduleEnabled = moduleDB.enabled
-        local prefixEnabled = prefixCheckbox:GetChecked()
-        local shouldEnable = globalEnabled and moduleEnabled and prefixEnabled
+    -- Custom prefix controls are only interactive when global + module + prefix are all on
+    UpdatePrefixControls = function()
+        local shouldEnable = TarballsDadabaseDB.globalEnabled and moduleDB.enabled and ToBoolean(prefixCheckbox:GetChecked())
 
         if shouldEnable then
             customPrefixCheckbox:Enable()
@@ -606,37 +587,19 @@ function Config:BuildModuleContent(container, moduleId)
         end
     end
 
-    -- Hook up prefix checkbox to update custom prefix controls
-    prefixCheckbox:SetScript("OnClick", function(self)
-        DB:SetPrefixEnabled(moduleId, self:GetChecked())
-        UpdatePrefixControls()
-    end)
-
     -- Divider between auto-save settings and manual-save editor
     local editorDivider = container:CreateTexture(nil, "ARTWORK")
     editorDivider:SetColorTexture(0.5, 0.5, 0.5, 0.5)
     editorDivider:SetSize(DIVIDER_WIDTH, 2)
-    editorDivider:SetPoint("TOPLEFT", 10, yOffset)
-    yOffset = yOffset - 20
+    editorDivider:SetPoint("TOPLEFT", 10, -350)
 
-    -- Content management section (requires Save button)
-    local effectiveContent = DB:GetEffectiveContent(moduleId)
-    local contentLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    contentLabel:SetPoint("TOPLEFT", 10, yOffset)
-    contentLabel:SetText("Content Editor (" .. #effectiveContent .. " items)")
-    yOffset = yOffset - 30
+    local contentLabel = AddSectionLabel(container, -370, "Content Editor (" .. Manager:GetContentCount(moduleId) .. " items)")
 
-    -- Instructions
-    local instructionsLabel = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    instructionsLabel:SetPoint("TOPLEFT", 10, yOffset)
-    instructionsLabel:SetPoint("TOPRIGHT", -10, yOffset)
-    instructionsLabel:SetJustifyH("LEFT")
-    instructionsLabel:SetText("Edit the content below (one item per line, max " .. MAX_CONTENT_ENTRY_LENGTH .. " characters per line to allow room for prefix). Click 'Save Changes' to apply your edits.")
-    yOffset = yOffset - 25
+    AddHelpText(container, -400, "Edit the content below (one item per line, max " .. MAX_CONTENT_ENTRY_LENGTH .. " characters per line to allow room for prefix). Click 'Save Changes' to apply your edits.")
 
     -- Multi-line text editor with border (includes buttons at bottom)
     local editorBorder = CreateFrame("Frame", nil, container, "BackdropTemplate")
-    editorBorder:SetPoint("TOPLEFT", 5, yOffset)
+    editorBorder:SetPoint("TOPLEFT", 5, -425)
     editorBorder:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -5, 20)
     editorBorder:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -695,7 +658,6 @@ function Config:BuildModuleContent(container, moduleId)
     statusLabel:SetPoint("LEFT", saveBtn, "RIGHT", 10, 0)
     statusLabel:SetText("")
 
-    -- Reset button (create early so LoadContent can reference it)
     local resetBtn = CreateFrame("Button", nil, editorBorder, "UIPanelButtonTemplate")
     resetBtn:SetSize(120, 25)
     resetBtn:SetPoint("BOTTOMRIGHT", editorBorder, "BOTTOMRIGHT", -10, 10)
@@ -705,9 +667,8 @@ function Config:BuildModuleContent(container, moduleId)
     -- Track original content for change detection
     local originalText = ""
 
-    -- Populate with current content
     local function LoadContent()
-        local content = DB:GetEffectiveContent(moduleId)
+        local content = Manager:GetEffectiveContent(moduleId)
         local text = table.concat(content, "\n")
         editBox:SetText(text)
         originalText = text
@@ -745,8 +706,8 @@ function Config:BuildModuleContent(container, moduleId)
         local skippedLines = 0
 
         -- Parse lines (split by newline)
-        for line in text:gmatch("[^\r\n]+") do
-            line = line:trim()
+        for rawLine in text:gmatch("[^\r\n]+") do
+            local line = rawLine:trim()
             if line ~= "" then
                 -- Validate line length against the single-message cap (over-limit
                 -- lines are skipped, not split -- there is no multi-message logic)
@@ -754,7 +715,7 @@ function Config:BuildModuleContent(container, moduleId)
                     skippedLines = skippedLines + 1
                 else
                     -- Sanitize input - remove WoW formatting codes
-                    line = DB:SanitizeText(line)
+                    line = Manager:SanitizeText(line)
                     if line ~= "" then
                         table.insert(newContent, line)
                     end
@@ -763,7 +724,7 @@ function Config:BuildModuleContent(container, moduleId)
         end
 
         -- Update the database
-        DB:SetEffectiveContent(moduleId, newContent)
+        Manager:SetEffectiveContent(moduleId, newContent)
 
         -- Reload the editor from canonical stored content so the displayed text
         -- always matches what was persisted (skipped over-length lines, sanitized
@@ -773,7 +734,7 @@ function Config:BuildModuleContent(container, moduleId)
         LoadContent()
 
         -- Show feedback using the actual stored count
-        local savedCount = #DB:GetEffectiveContent(moduleId)
+        local savedCount = Manager:GetContentCount(moduleId)
         local message = "Saved! (" .. savedCount .. " items)"
         if skippedLines > 0 then
             message = message .. " (" .. skippedLines .. " lines over "
@@ -787,13 +748,12 @@ function Config:BuildModuleContent(container, moduleId)
         end)
     end)
 
-    -- Reset button click handler
     resetBtn:SetScript("OnClick", function()
         -- Clear all user changes
         moduleDB.userAdditions = {}
         moduleDB.userDeletions = {}
         -- Invalidate content cache so runtime uses fresh defaults
-        DB.contentCache[moduleId] = nil
+        Manager:InvalidateCache(moduleId)
         LoadContent()
         statusLabel:SetText("Reset to defaults!")
         C_Timer.After(STATUS_CLEAR_DELAY, function()
@@ -801,27 +761,12 @@ function Config:BuildModuleContent(container, moduleId)
         end)
     end)
 
-    -- Store all controls that should be disabled when addon or module is disabled
-    -- Note: enableCheckbox should always be enabled (even when global is off)
-    -- Note: editBox should always remain enabled so users can add content before enabling module
-    -- Note: customPrefixCheckbox and prefixInput are handled separately by UpdatePrefixControls
-    local moduleControls = {
-        raidCheckbox,
-        partyCheckbox,
-        prefixCheckbox,
-        saveBtn,
-        resetBtn
-    }
-
-    -- Controls that get tooltip handlers (editBox and prefixInput excluded to prevent typing interference)
-    -- Note: customPrefixCheckbox handled separately by UpdatePrefixControls
-    local controlsWithTooltips = {
-        raidCheckbox,
-        partyCheckbox,
-        prefixCheckbox,
-        saveBtn,
-        resetBtn
-    }
+    -- Controls disabled when the addon or this module is disabled. enableCheckbox and
+    -- editBox stay interactive on purpose: users can configure and add content before
+    -- enabling the module. customPrefixCheckbox and prefixInput are handled by
+    -- UpdatePrefixControls.
+    local moduleControls = {raidCheckbox, partyCheckbox, prefixCheckbox, saveBtn, resetBtn}
+    local controlsWithTooltips = {raidCheckbox, partyCheckbox, prefixCheckbox, saveBtn, resetBtn}
 
     -- Tooltip handlers (defined once to prevent memory leaks)
     local function ShowGlobalDisabledTooltip(self)
@@ -845,9 +790,7 @@ function Config:BuildModuleContent(container, moduleId)
     -- Track tooltip state to prevent recreating handlers
     local tooltipStates = {}
 
-    -- Helper function to set control state (enabled/disabled, colors, tooltips)
     local function SetControlState(control, enabled, tooltipType)
-        -- Set enabled/disabled state and colors
         if enabled then
             control:Enable()
             if control.text then
@@ -860,7 +803,6 @@ function Config:BuildModuleContent(container, moduleId)
             end
         end
 
-        -- Set tooltip handlers if specified (and state changed)
         if tooltipType and tooltipStates[control] ~= tooltipType then
             if tooltipType == "global" then
                 control:SetScript("OnEnter", ShowGlobalDisabledTooltip)
@@ -876,12 +818,10 @@ function Config:BuildModuleContent(container, moduleId)
         end
     end
 
-    -- Function to refresh control states based on global and module enabled
     local function RefreshControls()
         local globalEnabled = TarballsDadabaseDB.globalEnabled
         local moduleEnabled = moduleDB.enabled
 
-        -- Show/hide warning based on global enabled state
         if globalEnabled then
             warningFrame:Hide()
         else
@@ -891,7 +831,6 @@ function Config:BuildModuleContent(container, moduleId)
         -- Enable checkbox is always enabled (allows configuration when global is disabled)
         SetControlState(enableCheckbox, true, nil)
 
-        -- Determine tooltip type for disabled controls
         local tooltipType = "none"
         if not globalEnabled then
             tooltipType = "global"
@@ -899,39 +838,34 @@ function Config:BuildModuleContent(container, moduleId)
             tooltipType = "module"
         end
 
-        -- Handle other module controls - disabled by either global or module setting
         local controlsEnabled = globalEnabled and moduleEnabled
         for _, control in ipairs(moduleControls) do
             SetControlState(control, controlsEnabled, nil)
         end
-
-        -- Update tooltips for controls with tooltip handlers
         for _, control in ipairs(controlsWithTooltips) do
             SetControlState(control, controlsEnabled, tooltipType)
         end
 
-        -- Update custom prefix controls based on prefix enabled state
         UpdatePrefixControls()
     end
 
-    -- Hook up enable checkbox to refresh controls
     enableCheckbox:SetScript("OnClick", function(self)
-        DB:SetModuleEnabled(moduleId, self:GetChecked())
+        Manager:SetModuleEnabled(moduleId, ToBoolean(self:GetChecked()))
         RefreshControls()
     end)
 
     container.RefreshControls = RefreshControls
 
-    -- Re-apply saved-variable values into this module tab's widgets. Called on
-    -- panel open (and after slash commands) so checkbox/prefix state cannot drift
-    -- from the DB. Intentionally does NOT reload the content editor: no slash
-    -- command edits content, and reloading would discard a user's unsaved edits.
+    -- Re-apply saved-variable values into this module tab's widgets. Called on panel
+    -- open (and after slash commands) so checkbox/prefix state cannot drift from the
+    -- the database. Intentionally does NOT reload the content editor: no slash command edits
+    -- content, and reloading would discard a user's unsaved edits.
     container.SyncFromDB = function()
-        enableCheckbox:SetChecked(moduleDB.enabled)
-        raidCheckbox:SetChecked(moduleDB.groups.raid == true)
-        partyCheckbox:SetChecked(moduleDB.groups.party == true)
-        prefixCheckbox:SetChecked(moduleDB.prefixEnabled == true)
-        customPrefixCheckbox:SetChecked(moduleDB.useCustomPrefix == true)
+        enableCheckbox:SetChecked(ToBoolean(moduleDB.enabled))
+        raidCheckbox:SetChecked(ToBoolean(moduleDB.groups.raid))
+        partyCheckbox:SetChecked(ToBoolean(moduleDB.groups.party))
+        prefixCheckbox:SetChecked(ToBoolean(moduleDB.prefixEnabled))
+        customPrefixCheckbox:SetChecked(ToBoolean(moduleDB.useCustomPrefix))
         prefixInput:SetText(moduleDB.customPrefix or "")
         RefreshControls()
     end

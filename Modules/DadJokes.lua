@@ -927,7 +927,6 @@ local defaultJokes = {
     "What happens when a strawberry gets run over crossing the street? Traffic jam.",
     "I went on a date last night with a girl from the zoo. It was great. She's a keeper."
 }
-}
 
 -- Register with Database Manager
 Dadabase.DatabaseManager:RegisterModule("dadjokes", {

@@ -30,8 +30,8 @@ World of Warcraft addon that automatically shares content (dad jokes, Warcraft j
   - Import new default content on updates
   - Smart Save and Reset buttons (only enabled when text is edited)
   - Buttons visually contained within editor frame for clarity
-  - Automatic message splitting for content over 255 characters
-  - Smart word-boundary detection prevents mid-word splits
+  - Lines over 195 characters are skipped when saving (leaving room for the prefix)
+  - Truncation is UTF-8 safe, so a multibyte character is never cut in half
 - **Global Controls:**
   - Master enable/disable toggle
   - Controls gray out when disabled with helpful tooltips
@@ -118,7 +118,7 @@ A visual divider separates auto-saving settings (above) from manual-save content
 - Add custom content or remove any lines
 - Save Changes and Reset to Defaults buttons (disabled until text is edited)
 - Buttons are contained within the editor frame with a divider for visual clarity
-- Long content (over 255 characters) automatically splits across multiple messages with smart word-boundary detection
+- Lines over 195 characters are skipped when saving (that leaves room for the prefix). Messages over 255 bytes are truncated on send — there is no multi-message splitting
 
 ## Content Database
 
@@ -143,7 +143,7 @@ The addon uses a change-tracking system to manage content efficiently. Default c
 4. Combines all matching content into a pool
 5. Randomly selects one item to send
 6. Adds prefix (default with random adjective or custom)
-7. Splits message if over 255 characters (1.5s delay between chunks)
+7. Truncates to 255 bytes if the message is over the single-message limit
 8. Plays sound effect if enabled
 9. Increments usage statistics
 
@@ -154,7 +154,7 @@ The addon uses a change-tracking system to manage content efficiently. Default c
 4. Combines all enabled content into a pool
 5. Randomly selects one item to send
 6. Adds prefix (default with random adjective or custom)
-7. Splits message if over 255 characters (1.5s delay between chunks)
+7. Truncates to 255 bytes if the message is over the single-message limit
 8. Increments usage statistics
 
 **Note:** Manual commands have a 3-second rate limit to prevent spam.

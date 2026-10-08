@@ -20,6 +20,31 @@ All notable changes to Tarball's Dadabase will be documented in this file.
 - `ShowTab` matches the settings tab by identity instead of by hardcoded index
 - About tab and Interface Options text updated to list the Warcraft Jokes tab
 
+### Fixed
+- `Modules/DadJokes.lua` had a stray duplicate `}` from the content split, which would
+  have failed to load the file in-game
+
+### Cleanup
+- `GetChecked()` results are normalised to real booleans before being stored, so
+  SavedVariables stay clean and legacy `1` values still count as enabled
+- `Config:BuildModuleContent` split into widget factories (`AddCheckbox`, `AddHelpText`,
+  `AddSectionLabel`, `AddWarningBanner`) and section helpers
+- `local DB` renamed to `Manager` in `Config.lua` and `Database.lua` to distinguish the
+  manager from the SavedVariables table
+- Prefix templates hoisted to a table; the content editor's per-line cap is derived from
+  the longest possible prefix instead of hardcoded as 195
+- Shared helpers in `Core.lua`: `BuildMessage`, `RecordUsage`, `PlaySelectedSound`, and a
+  single instance/raid/party branch used by both the automatic trigger and the manual
+  commands
+- `DatabaseManager:InvalidateCache(moduleId)` and read-only
+  `DatabaseManager:GetContentCount(moduleId)` added
+- `RegisterModule` prints and skips on duplicate registration instead of raising a
+  load-time error
+- Cooldown command captures its number once instead of matching twice; redundant
+  `for moduleId, _ in pairs` cleaned up
+- Default sound constant centralised in `Database.lua`
+- Random-content pick reuses a scratch table instead of allocating one per trigger
+
 ## [0.5.4-beta.1] - 2026-10-04
 
 ### Added

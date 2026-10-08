@@ -74,8 +74,8 @@ function M:ApplyContentMove(move, key)
     TarballsDadabaseDB.migrations[key] = true
 
     if carried > 0 then
-        Dadabase.DatabaseManager.contentCache[move.to] = nil
-        Dadabase.DatabaseManager.contentCache[move.from] = nil
+        Dadabase.DatabaseManager:InvalidateCache(move.to)
+        Dadabase.DatabaseManager:InvalidateCache(move.from)
 
         if TarballsDadabaseDB.debug then
             print("[MIGRATION] " .. key .. ": carried " .. carried .. " deletion(s) to " .. move.to)
