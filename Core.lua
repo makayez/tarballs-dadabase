@@ -2,7 +2,7 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.5.4-beta.1"
+Dadabase.VERSION = "0.6.0-alpha.1"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10

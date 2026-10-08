@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.6.0-alpha.1] - Unreleased (branch `feature/0.6.0-alpha-warcraft-jokes`)
+
+### Added
+- Separate "Warcraft Jokes" content database (`Modules/WarcraftJokes.lua`) with its own config tab, enable toggle, group settings, prefix, and content editor
+- Warcraft Jokes defaults to disabled; the selection is persisted in SavedVariables like every other module
+- Default prefix for the Warcraft Jokes module ("And now, for a/an <adjective> Warcraft joke: ")
+- The start-up content count, `/dadabase status`, and the Settings statistics now include the Warcraft Jokes database (it already iterates all registered modules)
+
+### Changed
+- 84 Warcraft/Warcraft-character-specific jokes moved out of Dad Jokes into the new database (Dad Jokes 1007 -> 923, total content unchanged at 1007)
+- Dad Jokes `dbVersion` bumped 2 -> 3 to reflect the changed default content
+
 ## [0.5.4-beta.1] - 2026-10-04
 
 ### Added

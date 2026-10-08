@@ -2,7 +2,7 @@
 ## Title: Tarball's Dadabase
 ## Notes: Dispenses dad jokes upon group wipes
 ## Author: Tarball-Whisperwind [A]
-## Version: 0.5.4-beta.1
+## Version: 0.6.0-alpha.1
 ## X-Curse-Project-ID: 1445988
 ## SavedVariables: TarballsDadabaseDB
 ## IconTexture: Interface\AddOns\TarballsDadabase\icon
@@ -11,5 +11,6 @@ Database.lua
 Core.lua
 Config.lua
 Modules\DadJokes.lua
+Modules\WarcraftJokes.lua
 Modules\Demotivational.lua
 Modules\GuildQuotes.lua

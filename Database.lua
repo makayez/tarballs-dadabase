@@ -336,6 +336,7 @@ function DB:GetContentPrefix(moduleId)
 
     local prefixes = {
         dadjokes = "And now, for " .. article .. " " .. randomAdjective .. " dad joke: ",
+        warcraftjokes = "And now, for " .. article .. " " .. randomAdjective .. " Warcraft joke: ",
         demotivational = "And now, for " .. article .. " " .. randomAdjective .. " motivational quote: "
     }
     return prefixes[moduleId] or ""
