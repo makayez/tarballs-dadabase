@@ -12,41 +12,112 @@ local MAX_CHAT_MESSAGE_LENGTH = 255
 -- Load Confirmation
 -- ============================================================================
 
+-- Per-module descriptor pools. The generic list reads badly for non-joke content
+-- ("30 knee-slappers" for guild quotes), so each module gets its own vocabulary.
 local contentTypeNames = {
-    "bad puns",
-    "groaners",
-    "dad jokes",
-    "knee-slappers",
-    "eye-rollers",
-    "thigh-slappers",
-    "zingers",
-    "one-liners",
-    "corny jokes",
-    "silly jokes",
-    "cheesy jokes",
-    "rib-ticklers",
-    "side-splitters",
-    "stinkers",
-    "doozies",
-    "howlers",
-    "chucklers",
-    "gut-busters",
-    "cringers",
-    "face-palmers",
-    "absolute bangers",
-    "certified classics",
-    "humdingers",
-    "wisecracks",
-    "quips",
-    "gags",
-    "japes",
-    "real winners",
-    "premium jokes",
-    "crowd-pleasers"
+    dadjokes = {
+        "bad puns",
+        "groaners",
+        "dad jokes",
+        "knee-slappers",
+        "eye-rollers",
+        "thigh-slappers",
+        "zingers",
+        "one-liners",
+        "corny jokes",
+        "silly jokes",
+        "cheesy jokes",
+        "rib-ticklers",
+        "side-splitters",
+        "stinkers",
+        "doozies",
+        "howlers",
+        "chucklers",
+        "gut-busters",
+        "cringers",
+        "face-palmers",
+        "absolute bangers",
+        "certified classics",
+        "humdingers",
+        "wisecracks",
+        "quips",
+        "gags",
+        "japes",
+        "real winners",
+        "premium jokes",
+        "crowd-pleasers"
+    },
+    warcraftjokes = {
+        "Azeroth groaners",
+        "Warcraft groaners",
+        "puns of Azeroth",
+        "goblin-engineered puns",
+        "lore-accurate groaners",
+        "raid-night groaners",
+        "LFD groaners",
+        "punny one-liners",
+        "Shazam-tier groaners",
+        "Lag-terning jokes",
+        "class-flavoured puns",
+        "punny gems",
+        "knee-slappers of Azeroth",
+        "groaners for the raid",
+        "puns for the party",
+        "punny classics",
+        "one-liners from Azeroth",
+        "puns that hit like a Charge",
+        "groaners worthy of a Warbringer",
+        "puns for the guild hall"
+    },
+    demotivational = {
+        "demotivational sayings",
+        "words of despair",
+        "pessimistic proverbs",
+        "gloomy gems",
+        "downer sayings",
+        "gallows humor",
+        "cynical one-liners",
+        "salty truths",
+        "words of woe",
+        "defeatist proverbs",
+        "wipe-night wisdom",
+        "repair-bill wisdom",
+        "gloomy one-liners",
+        "cynical classics",
+        "pessimistic pearls",
+        "downer classics",
+        "words of doubt",
+        "salty sayings"
+    },
+    guildquotes = {
+        "pearls of wisdom",
+        "words of wisdom",
+        "pearls",
+        "gems",
+        "quotable moments",
+        "classic lines",
+        "legendary sayings",
+        "timeless quotes",
+        "memorable lines",
+        "hall of fame quotes",
+        "immortal words",
+        "beloved sayings",
+        "profound words",
+        "words to live by",
+        "famous last words",
+        "quote vault entries",
+        "quote hall classics",
+        "memorable quotes",
+        "the archives",
+        "memorable sayings"
+    },
+    -- Fallback for any module without its own pool.
+    default = { "items", "entries", "lines", "sayings" }
 }
 
-local function GetRandomContentTypeName()
-    return contentTypeNames[math.random(#contentTypeNames)]
+local function GetRandomContentTypeName(moduleId)
+    local names = contentTypeNames[moduleId] or contentTypeNames.default
+    return names[math.random(#names)]
 end
 
 -- ============================================================================
@@ -236,13 +307,24 @@ frame:SetScript("OnEvent", function(_, event, ...)
                 Dadabase.Config:RegisterInterfaceOptions()
             end
 
-            -- Print load message
-            local contentCount = Dadabase.DatabaseManager:GetTotalContentCount()
-            local contentTypeName = GetRandomContentTypeName()
-            print("Tarball's Dadabase v" .. Dadabase.VERSION .. " loaded: " .. contentCount .. " " .. contentTypeName .. " loaded. Type /dadabase to configure.")
+            -- Print load message. Empty databases are omitted so a fresh install
+            -- (Guild Quotes unpopulated) does not advertise "0 pearls of wisdom".
+            local summary = Dadabase.DatabaseManager:GetContentSummary()
+            if #summary == 0 then
+                print("Tarball's Dadabase v" .. Dadabase.VERSION .. " loaded: no content yet. Type /dadabase to configure.")
+            else
+                local parts = {}
+                for _, entry in ipairs(summary) do
+                    table.insert(parts, entry.count .. " " .. GetRandomContentTypeName(entry.moduleId))
+                end
+                print("Tarball's Dadabase v" .. Dadabase.VERSION .. " loaded: " .. table.concat(parts, ", ") .. ". Type /dadabase to configure.")
+            end
 
             DebugPrint("Dadabase ADDON_LOADED")
-            DebugPrint("  Total content: " .. contentCount)
+            for _, entry in ipairs(summary) do
+                DebugPrint("  " .. entry.name .. ": " .. entry.count)
+            end
+            DebugPrint("  Total content: " .. Dadabase.DatabaseManager:GetTotalContentCount())
             DebugPrint("  Cooldown: " .. TarballsDadabaseDB.cooldown)
         end
 

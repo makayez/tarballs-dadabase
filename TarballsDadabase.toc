@@ -8,6 +8,7 @@
 ## IconTexture: Interface\AddOns\TarballsDadabase\icon
 
 Database.lua
+Migrations.lua
 Core.lua
 Config.lua
 Modules\DadJokes.lua

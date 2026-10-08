@@ -231,6 +231,11 @@ function DB:Initialize()
             end
         end
     end
+
+    -- Carry user deletions across content that has moved between modules.
+    if Dadabase.Migrations then
+        Dadabase.Migrations:Run()
+    end
 end
 
 -- ============================================================================
@@ -296,6 +301,23 @@ function DB:GetTotalContentCount()
         total = total + #content
     end
     return total
+end
+
+-- Per-module content counts, sorted by module name so the output is stable between
+-- logins. Modules with no content are omitted (empty databases are not advertised).
+function DB:GetContentSummary()
+    local summary = {}
+    if not self.modules then
+        return summary
+    end
+    for moduleId, module in pairs(self.modules) do
+        local count = #self:GetEffectiveContent(moduleId)
+        if count > 0 then
+            table.insert(summary, { moduleId = moduleId, name = module.name, count = count })
+        end
+    end
+    table.sort(summary, function(a, b) return a.name < b.name end)
+    return summary
 end
 
 function DB:GetContentPrefix(moduleId)

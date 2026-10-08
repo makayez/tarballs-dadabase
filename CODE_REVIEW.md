@@ -10,15 +10,21 @@ below is **catalogued only — not fixed**.
 
 ## 1. What was implemented in this pass
 
-| Change | File |
-|---|---|
-| New module/database `warcraftjokes` with 84 WoW-specific default jokes | `Modules/WarcraftJokes.lua` (new) |
-| 84 WoW jokes removed from Dad Jokes defaults (1007 → 923) | `Modules/DadJokes.lua` |
-| Dad Jokes `dbVersion` bumped `2 → 3` (defaults changed) | `Modules/DadJokes.lua` |
-| Config tab registered (same shape as Guild Quotes) | `Modules/WarcraftJokes.lua` |
-| Default prefix entry for the new module | `Database.lua:337` (`GetContentPrefix`) |
-| TOC load order entry | `TarballsDadabase.toc` |
-| Version `0.5.4-beta.1 → 0.6.0-alpha.1` | `Core.lua`, TOC |
+| Change | File | Status |
+|---|---|---|
+| New module/database `warcraftjokes` with 84 WoW-specific default jokes | `Modules/WarcraftJokes.lua` (new) | done |
+| 84 WoW jokes removed from Dad Jokes defaults (1007 → 923) | `Modules/DadJokes.lua` | done |
+| Dad Jokes `dbVersion` bumped `2 → 3` (defaults changed) | `Modules/DadJokes.lua` | done |
+| Config tab registered (same shape as Guild Quotes) | `Modules/WarcraftJokes.lua` | done |
+| Default prefix entry for the new module | `Database.lua` (`GetContentPrefix`) | done |
+| TOC load order entry | `TarballsDadabase.toc` | done |
+| Version `0.5.4-beta.1 → 0.6.0-alpha.1` | `Core.lua`, TOC | done |
+| Vertical tab bar in a left gutter (fixes the 6-tab overflow) | `Config.lua` | done (was I-1) |
+| Per-module descriptor pools + per-module start-up breakdown, empty databases skipped | `Core.lua`, `Database.lua` (`GetContentSummary`) | done (was I-8) |
+| One-time migration carrying user deletions across moved content | `Migrations.lua` (new) | done (was I-3) |
+| Help line explaining the shared random pool | `Config.lua` | done (was B.9) |
+| About tab + Interface Options text | `Config.lua` | done (was I-15) |
+| README feature list, counts, architecture, Saved Variables, version | `README.md` | done (was I-16) |
 
 Behaviour notes for the new module:
 
@@ -40,13 +46,13 @@ Behaviour notes for the new module:
 
 ### P1 — Blocking for this feature
 
-**I-1. Config panel tab bar overflows with a 6th tab.**
-`CreateTabButton` (`Config.lua:66`) lays tabs out in a single row using accumulated widths:
+**I-1. Config panel tab bar overflows with a 6th tab. — RESOLVED**
+`CreateTabButton` laid tabs out in a single row using accumulated widths:
 `x = 20 + Σ(width + 5)`. With About(120) + Settings(120) + four large tabs (130 each), the
-last button starts at `x = 675` and ends at `x = 805` — 105px past the 700px panel.
-The Warcraft Jokes tab is the 6th button, so it renders outside the panel.
-Options: wrap to a second row, shrink `TAB_BUTTON_WIDTH_LARGE`, widen the panel, or make the
-tab bar scrollable. (Left unfixed per instructions.)
+last button started at `x = 675` and ended at `x = 805` — 105px past the 700px panel.
+Resolved by moving the tab bar to a left gutter (`TAB_GUTTER_WIDTH = 175`) with content
+anchored to the right; editor/divider/prefix-input widths were reduced to fit. A gutter
+scales to any number of modules, so this cannot recur.
 
 **I-2. `string.trim` is not a Lua 5.1 / WoW API method.**
 `Core.lua:357`, `Config.lua:737`, `Database.lua:106` all call `:trim()`. WoW runs Lua 5.1 and
@@ -55,16 +61,16 @@ exposes `strtrim(s)`, not `string.trim`. If `trim` is not present this is an
 content editor, and in `SanitizeText`. Needs in-game verification; if confirmed, replace with
 `strtrim` (or a local shim).
 
-**I-3. SavedVariables migration for moved jokes.**
-Content tracking is per-module (`userAdditions` / `userDeletions`). Moving 84 jokes from
-`dadjokes` to `warcraftjokes` means:
-- A user who had **deleted** a WoW joke in Dad Jokes will see it reappear in the new database
-  (the deletion stays in `dadjokes.userDeletions` and is never applied to the new module).
-- A user's **own additions** that are WoW-flavoured stay in Dad Jokes and are not moved.
-- Users who deleted a moved joke now have stale entries in `dadjokes.userDeletions`
-  (harmless, but they inflate the "preserved deletions" debug count).
-Needs a one-time migration map (old moduleId → new moduleId for moved items) if we want
-deletions to follow the jokes.
+**I-3. SavedVariables migration for moved jokes. — RESOLVED (risk assessed)**
+Content tracking is per-module (`userAdditions` / `userDeletions`), so a user who had
+**deleted** a WoW joke in Dad Jokes would see it reappear in the new database.
+Resolved by `Migrations.lua`: a one-time, idempotent, flag-guarded pass that copies matching
+deletions to the destination module and prunes them from the source.
+Why this is low risk: it only touches strings in the moved set, never rewrites
+`userAdditions`, is guarded by `TarballsDadabaseDB.migrations["from->to"]` so it runs once,
+and the worst failure mode is a no-op. The alternative — a generic "deletions follow content
+across all modules" rule — was rejected because a user can add the same line to one module
+while deleting it from another, which that rule would corrupt.
 
 ### P2 — Correctness / robustness
 
@@ -85,15 +91,15 @@ Also the editor says "max 195 **characters** per line" while the check is `#line
 including duplicates, into `userAdditions`. Duplicates are only deduped for the
 *deletion* side (`newContentSet`). Behaviour and comment disagree.
 
-**I-7. `ShowTab` hardcodes `i == 2` to refresh statistics** (`Config.lua:114`).
-Adding/reordering tabs breaks the stats refresh. Should key off the tab's role, not its index.
+**I-7. `ShowTab` hardcoded `i == 2` to refresh statistics — RESOLVED**, now matched by tab
+identity via a captured `settingsTab` reference.
 
-**I-8. Load message wording vs. actual content.**
-`Core.lua:240-242` prints `"<total> <random name> loaded"` where the total is across *all*
-modules (including disabled and empty ones such as Guild Quotes) and the noun is picked from a
-list of joke names. With a separate Warcraft database this is now more misleading: a user with
-only WoW jokes enabled still sees "dad jokes", and a user with 0 enabled content still sees a
-non-zero count. Also `GetRandomContentTypeName()` has no Warcraft-flavoured names.
+**I-8. Load message wording vs. actual content. — RESOLVED**
+`Core.lua` now prints a per-module breakdown (`923 dad jokes, 84 Azeroth groaners, 68
+demotivational sayings`) via `DB:GetContentSummary()`, sorted by module name, and omits
+modules with no content. Descriptor word pools are now per-module with a `default` fallback.
+Remaining nuance: counts still include disabled modules — an enabled-but-empty database is
+omitted, but a disabled database with content is still counted.
 
 **I-9. `SOUNDKIT` fallbacks are hardcoded numeric IDs.**
 `Core.lua` and `Config.lua` fall back to literals (`888`, `8960`, `12867`, …) when the
@@ -127,12 +133,14 @@ tab side.
 
 ### P3 — Hygiene / consistency
 
-- **I-15.** About tab text (`Config.lua:165`) lists "Dad Jokes, Demotivational, or Guild
-  Quotes tabs" — now stale, missing Warcraft Jokes.
-- **I-16.** README "Default Content" section says "Dad Jokes: 100+" (actual 923 after the
-  split, 1007 total) and has no entry for the new database; the Saved Variables section needs
-  the new module and any new settings.
-- **I-17.** CHANGELOG has no entry for this branch yet.
+- **I-15.** About tab text — **RESOLVED** (now lists Warcraft Jokes; the About and Interface
+  Options descriptions mention Warcraft puns).
+- **I-16.** README — **RESOLVED** (feature list, per-database counts, architecture file list,
+  Saved Variables `migrations` entry, pooling note, version). Still open: the README claims
+  "Automatic message splitting for content over 255 characters / smart word-boundary
+  detection", which the code does not do — over-length lines are skipped on save and messages
+  are truncated on send.
+- **I-17.** CHANGELOG — entry added for this branch.
 - **I-18.** Statistics list order is non-deterministic (`pairs` in `GetModuleStats`), so the
   Settings tab reshuffles rows between opens.
 - **I-19.** `math.randomseed(time())` is pcall-guarded but WoW's `math.randomseed` is
@@ -204,10 +212,81 @@ tab side.
 
 ## 4. Decisions to confirm before the 0.6.0 release
 
-1. Branch/version naming: this branch bumps to `0.6.0-alpha.1` (alpha, since this needs testing). If you prefer to keep the
+1. Branch/version naming: this branch is `feature/0.6.0-alpha-warcraft-jokes` and bumps to
+   `0.6.0-alpha.1` (alpha, since this needs testing). If you prefer to keep the
    version bump at release time, revert `Core.lua` + TOC.
 2. Whether the 26 borderline jokes move too (see A.4).
 3. Whether the tab overflow fix (I-1) is in scope for this pass — the feature is visually
    broken without it.
 4. Whether `string.trim` (I-2) is actually available in the current client — if not, it is a
    live bug on `main` today, independent of this feature.
+
+---
+
+## 4. Performance — opportunities
+
+Honest answer: there is very little left. The addon has no `OnUpdate`, no per-frame work, no
+per-item allocation in the hot path, a minimal event set (4 events), and a cache for the only
+data structure that is read repeatedly. Nothing here is measurable in a running client.
+
+The only real (micro) wins:
+
+1. **`GetContentPrefix` allocates a `prefixes` table on every call.** Hoist it to a file-scope
+   `PREFIX_TEMPLATES` with `string.format("%s", adjective)`. One table allocation saved per
+   message. Worth doing for clarity more than for speed.
+2. **`GetRandomContent` allocates a `matching` table per trigger.** Reuse a module-level
+   scratch table (cleared with `table.wipe`) instead of allocating per call. Only matters on
+   raid wipes with many modules; negligible, but it is free.
+3. **`GetTotalContentCount()` materializes every module's effective content just to count it.**
+   A `#defaults - #deletions + #additions` count avoids building ~1007-entry tables at login.
+   **Not recommended**: it is only correct if every stored deletion still refers to a default
+   item, and the cache is needed for the random pick anyway. The current code is correct and
+   the win is a single login-time allocation.
+4. **`contentCache` holds all module arrays (~1007 strings, ~60-70 KB).** Could cache only
+   enabled modules. Not worth the complexity.
+5. **`SanitizeText` runs 6 `gsub` passes per line** on Save (923 lines ≈ 5,500 gsubs in one
+   click). Fine — it is a user action, not a hot path.
+6. **The Dad Jokes editor builds a ~40 KB string and a ~13,000 px edit box on first open.**
+   Only on first open. Fine.
+
+Explicitly checked and already good: weighted two-step pick (no pool materialization),
+adjective/vowel tables hoisted, sets instead of arrays for deletion checks, `table.concat`
+instead of string concatenation in loops, tooltip handlers attached only on state change,
+panel built lazily, `pcall` around `PlaySound`/`math.randomseed`, SavedVariables stores only
+deltas.
+
+## 5. Code cleanup / idiomatic Lua
+
+1. **Normalize `GetChecked()` to a boolean.** `Config.lua` stores `self:GetChecked()` straight
+   into SavedVariables. On some clients this returns `1`/`nil` rather than `true`/`false`, and
+   `moduleDB.groups[group] == true` would then never match — a module could be enabled and
+   never trigger. Use `self:GetChecked() and true or false`. This is the highest-value cleanup
+   on this list because it is also a latent bug.
+2. **`local DB = Dadabase.DatabaseManager` reads like the SavedVariables global**
+   (`TarballsDadabaseDB`). Rename to `Manager` to remove the ambiguity.
+3. **`Config:BuildModuleContent` is ~300 lines in one function.** Split into
+   `buildWarning`, `buildGroups`, `buildPrefix`, `buildEditor`, `buildButtons`,
+   `buildControlState`. This is the single biggest maintainability win in the codebase.
+4. **`TriggerContent` and `SendManualContent` duplicate** prefix building, length validation,
+   truncation, and stats increment. Extract `Dadabase.BuildMessage(moduleId, content)` and
+   `Dadabase.RecordUsage(moduleId)`.
+5. **`GetManualChatChannel` duplicates the instance/raid/party branch** in `GetCurrentGroup`.
+   Share one helper that returns `(group, chatType)`.
+6. **`Config` pokes `DB.contentCache[moduleId] = nil` directly.** Add `DB:InvalidateCache(moduleId)`
+   so cache invalidation lives in one place (currently three).
+7. **`for moduleId, _ in pairs(...)`** → `for moduleId in pairs(...)`.
+8. **`msg:match("^cooldown%s+%d+$")` then `tonumber(msg:match("%d+"))`** matches twice; capture
+   once.
+9. **`RegisterModule` calls `error()` at load time.** A load-time error aborts the addon's
+   remaining files. Prefer `print` + `return` unless it is genuinely a programmer error.
+10. **`GetEffectiveContent` returns a shared mutable table.** It is documented as read-only but
+    nothing enforces it. Either add `DB:GetContentCount(moduleId)` for read-only callers
+    (Config stats, status, load message) or return a copy.
+11. **`SetControlState` mixes enable/disable, colouring, and tooltip wiring.** Splitting it
+    makes the module tab builder readable.
+12. **`MAX_CONTENT_ENTRY_LENGTH` should be derived** from the longest prefix across modules
+    rather than hardcoded to 195.
+13. **`GetTotalContentCount` and `GetContentSummary` overlap** — the total can be computed from
+    the summary.
+14. **`SOUNDKIT` numeric fallbacks** should be dropped or moved into a single table, not
+    scattered as literals in two files.

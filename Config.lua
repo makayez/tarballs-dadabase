@@ -9,19 +9,24 @@ local DB = Dadabase.DatabaseManager
 -- Constants
 local CONFIG_PANEL_WIDTH = 700
 local CONFIG_PANEL_HEIGHT = 650
-local TAB_BUTTON_WIDTH_SMALL = 120
-local TAB_BUTTON_WIDTH_LARGE = 130
-local TAB_BUTTON_HEIGHT = 25
+-- Tabs live in a left gutter. A single horizontal row cannot fit six tabs:
+-- 20 + 6 * (130 + 5) = 810, which overflows the 700px panel. A vertical gutter
+-- scales to any number of content modules without re-layout.
+local TAB_BUTTON_WIDTH = 150
+local TAB_BUTTON_HEIGHT = 26
+local TAB_BUTTON_SPACING = 6
+local TAB_GUTTER_WIDTH = 175
+local TAB_START_Y = -45
 -- 255-byte chat limit minus the longest generated prefix (the Guild Quotes
 -- prefix reaches 60 bytes with "extraordinary"), so a max-length entry plus its
 -- prefix still fits in one chat message without truncation.
 local MAX_CONTENT_ENTRY_LENGTH = 195
 local EDITOR_MIN_HEIGHT = 180
 local EDITOR_LINE_HEIGHT = 14
-local EDITOR_WIDTH = 600
+local EDITOR_WIDTH = 450
 local SLIDER_WIDTH = 300
 local DROPDOWN_WIDTH = 180
-local DIVIDER_WIDTH = 640
+local DIVIDER_WIDTH = 480
 local STATUS_CLEAR_DELAY = 3
 
 -- Sound effect options
@@ -62,23 +67,25 @@ end
 -- Helper Functions
 -- ============================================================================
 
--- Helper function to create and position tab buttons dynamically
-local function CreateTabButton(panel, text, tabButtons, isSmall)
+-- Tab buttons are stacked in the left gutter. Position is derived from the number
+-- of buttons already added, so it is stable regardless of when the panel is shown.
+local function CreateTabButton(panel, text, tabButtons)
     local tabBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    local width = isSmall and TAB_BUTTON_WIDTH_SMALL or TAB_BUTTON_WIDTH_LARGE
-    tabBtn:SetSize(width, TAB_BUTTON_HEIGHT)
+    tabBtn:SetSize(TAB_BUTTON_WIDTH, TAB_BUTTON_HEIGHT)
 
-    -- Calculate absolute position based on accumulated widths
-    -- This ensures consistent positioning regardless of when/how frame is displayed
-    local xOffset = 20  -- Left margin
-    for i = 1, #tabButtons do
-        xOffset = xOffset + tabButtons[i]:GetWidth() + 5
-    end
-
-    tabBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", xOffset, -35)
+    local yOffset = TAB_START_Y - #tabButtons * (TAB_BUTTON_HEIGHT + TAB_BUTTON_SPACING)
+    tabBtn:SetPoint("TOPLEFT", panel, "TOPLEFT", 20, yOffset)
 
     tabBtn:SetText(text)
     return tabBtn
+end
+
+-- Content area sits to the right of the tab gutter.
+local function CreateTabFrame(panel)
+    local tab = CreateFrame("Frame", nil, panel)
+    tab:SetPoint("TOPLEFT", TAB_GUTTER_WIDTH, TAB_START_Y)
+    tab:SetPoint("BOTTOMRIGHT", -20, 20)
+    return tab
 end
 
 -- ============================================================================
@@ -104,14 +111,16 @@ local function CreateConfigPanel()
     -- Tab system
     local tabButtons = {}
     local tabs = {}
+    local settingsTab
 
     local function ShowTab(tabIndex)
         for i, tab in ipairs(tabs) do
             if i == tabIndex then
                 tab:Show()
                 tabButtons[i]:SetAlpha(1.0)
-                -- Refresh stats when showing settings tab
-                if i == 2 and tab.UpdateStats then
+                -- Matched by identity rather than by index so reordering or adding
+                -- tabs cannot break the stats refresh.
+                if tab == settingsTab and tab.UpdateStats then
                     tab:UpdateStats()
                 end
             else
@@ -122,13 +131,11 @@ local function CreateConfigPanel()
     end
 
     -- About Tab (first tab)
-    local aboutTabBtn = CreateTabButton(panel, "About", tabButtons, true)
+    local aboutTabBtn = CreateTabButton(panel, "About", tabButtons)
     aboutTabBtn:SetScript("OnClick", function() ShowTab(1) end)
     table.insert(tabButtons, aboutTabBtn)
 
-    local aboutTab = CreateFrame("Frame", nil, panel)
-    aboutTab:SetPoint("TOPLEFT", 20, -70)
-    aboutTab:SetPoint("BOTTOMRIGHT", -20, 20)
+    local aboutTab = CreateTabFrame(panel)
     table.insert(tabs, aboutTab)
 
     -- Build about tab content
@@ -145,8 +152,8 @@ local function CreateConfigPanel()
     aboutDesc:SetJustifyH("LEFT")
     aboutDesc:SetSpacing(3)
     aboutDesc:SetText(
-        "A World of Warcraft addon that shares uplifting dad jokes, motivational quotes, " ..
-        "and memorable guild sayings when your raid wipes.\n\n" ..
+        "A World of Warcraft addon that shares uplifting dad jokes, Warcraft puns, " ..
+        "motivational quotes, and memorable guild sayings when your raid wipes.\n\n" ..
         "Perfect for lightening the mood after a difficult encounter!"
     )
     aboutYOffset = aboutYOffset - 100
@@ -162,7 +169,7 @@ local function CreateConfigPanel()
     howToDesc:SetJustifyH("LEFT")
     howToDesc:SetSpacing(3)
     howToDesc:SetText(
-        "1. Navigate to the Dad Jokes, Demotivational, or Guild Quotes tabs\n" ..
+        "1. Navigate to the Dad Jokes, Warcraft Jokes, Demotivational, or Guild Quotes tabs\n" ..
         "2. Scroll to the content editor at the bottom\n" ..
         "3. Add your own jokes or quotes (one per line)\n" ..
         "4. Delete any lines you don't want\n" ..
@@ -200,13 +207,11 @@ local function CreateConfigPanel()
     )
 
     -- Settings Tab (second tab)
-    local settingsTabBtn = CreateTabButton(panel, "Settings", tabButtons, true)
+    local settingsTabBtn = CreateTabButton(panel, "Settings", tabButtons)
     settingsTabBtn:SetScript("OnClick", function() ShowTab(2) end)
     table.insert(tabButtons, settingsTabBtn)
 
-    local settingsTab = CreateFrame("Frame", nil, panel)
-    settingsTab:SetPoint("TOPLEFT", 20, -70)
-    settingsTab:SetPoint("BOTTOMRIGHT", -20, 20)
+    settingsTab = CreateTabFrame(panel)
     table.insert(tabs, settingsTab)
 
     -- Build settings tab content
@@ -414,14 +419,12 @@ local function CreateConfigPanel()
 
     -- Module Tabs
     for _, moduleTab in ipairs(Config.moduleTabs) do
-        local tabBtn = CreateTabButton(panel, moduleTab.name, tabButtons, false)
+        local tabBtn = CreateTabButton(panel, moduleTab.name, tabButtons)
         local tabIndex = #tabs + 1
         tabBtn:SetScript("OnClick", function() ShowTab(tabIndex) end)
         table.insert(tabButtons, tabBtn)
 
-        local moduleTabFrame = CreateFrame("Frame", nil, panel)
-        moduleTabFrame:SetPoint("TOPLEFT", 20, -70)
-        moduleTabFrame:SetPoint("BOTTOMRIGHT", -20, 20)
+        local moduleTabFrame = CreateTabFrame(panel)
         table.insert(tabs, moduleTabFrame)
 
         -- Build module-specific content
@@ -513,7 +516,16 @@ function Config:BuildModuleContent(container, moduleId)
     partyCheckbox:SetScript("OnClick", function(self)
         DB:SetModuleGroup(moduleId, "party", self:GetChecked())
     end)
-    yOffset = yOffset - 40
+    yOffset = yOffset - 30
+
+    -- Pooling help line: enabled modules are combined into one random pool, which is
+    -- otherwise invisible to the user (they may expect this module alone to be used).
+    local poolHelp = container:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    poolHelp:SetPoint("TOPLEFT", 20, yOffset)
+    poolHelp:SetPoint("TOPRIGHT", -10, yOffset)
+    poolHelp:SetJustifyH("LEFT")
+    poolHelp:SetText("Content is pooled across all enabled modules - one item is picked at random from the combined pool.")
+    yOffset = yOffset - 35
 
     -- Prefix configuration section
     local prefixLabel = container:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -545,7 +557,7 @@ function Config:BuildModuleContent(container, moduleId)
     -- Custom prefix input
     local prefixInput = CreateFrame("EditBox", nil, container, "InputBoxTemplate")
     prefixInput:SetPoint("TOPLEFT", 40, yOffset)
-    prefixInput:SetSize(500, 20)
+    prefixInput:SetSize(440, 20)
     prefixInput:SetAutoFocus(false)
     prefixInput:SetMaxLetters(50)
     prefixInput:SetText(moduleDB.customPrefix or "")
@@ -999,7 +1011,7 @@ function Config:RegisterInterfaceOptions()
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
     desc:SetPoint("TOPRIGHT", settingsPanel, "TOPRIGHT", -16, -32)
     desc:SetJustifyH("LEFT")
-    desc:SetText("A World of Warcraft addon that shares uplifting dad jokes, motivational quotes, and memorable guild sayings when your raid wipes.")
+    desc:SetText("A World of Warcraft addon that shares uplifting dad jokes, Warcraft puns, motivational quotes, and memorable guild sayings when your raid wipes.")
 
     -- Open Config button
     local openBtn = CreateFrame("Button", nil, settingsPanel, "UIPanelButtonTemplate")

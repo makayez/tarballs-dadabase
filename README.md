@@ -1,11 +1,12 @@
 # Tarball's Dadabase
 
-World of Warcraft addon that automatically shares content (dad jokes, demotivational sayings, guild quotes) in party/raid chat based on configurable triggers.
+World of Warcraft addon that automatically shares content (dad jokes, Warcraft jokes, demotivational sayings, guild quotes) in party/raid chat based on configurable triggers.
 
 ## Features
 
 - **Multiple Content Types:**
   - Dad Jokes - Classic groaners and puns
+  - Warcraft Jokes - Azeroth-flavoured puns, in its own database (disabled by default)
   - Demotivational Sayings - For when things go wrong
   - Guild Quotes - Your guild's memorable moments
 - **Automatic Triggers:**
@@ -34,7 +35,8 @@ World of Warcraft addon that automatically shares content (dad jokes, demotivati
 - **Global Controls:**
   - Master enable/disable toggle
   - Controls gray out when disabled with helpful tooltips
-- In-game configuration panel with About, Settings, and content type tabs
+- In-game configuration panel with About, Settings, and content type tabs (tabs are stacked in a left gutter so they cannot overflow as modules are added)
+- Start-up message reports content counts per database, skipping empty ones
 - Persistent settings across logins
 - Manual commands for guild/say chat (ignore trigger/group settings)
 - Modular architecture for easy expansion
@@ -80,7 +82,7 @@ Access the configuration panel via:
   - 15 short, punchy sound effects to choose from
   - Test button to preview selected sound
 
-### Content Type Tabs (Dad Jokes, Demotivational, Guild Quotes)
+### Content Type Tabs (Dad Jokes, Warcraft Jokes, Demotivational, Guild Quotes)
 Each content type has its own tab with:
 
 **Warning Banner:**
@@ -107,6 +109,8 @@ Default prefixes use randomized adjectives like "And now, for an inspiring dad j
 
 **Note:** Manual commands (`/dadabase say`, `/dadabase guild`) ignore trigger and group settings and only respect module enabled state.
 
+**Note:** Content is pooled across all enabled modules - one item is chosen at random from the combined pool. Enabling only Warcraft Jokes means only Warcraft jokes are sent.
+
 **Content Editor:**
 A visual divider separates auto-saving settings (above) from manual-save content (below).
 
@@ -125,8 +129,9 @@ The addon uses a change-tracking system to manage content efficiently. Default c
 - SavedVariables stays small regardless of content size
 
 **Default Content:**
-- Dad Jokes: 100+ classic dad jokes and puns (enabled by default for wipes in raids/parties)
-- Demotivational: 30 demotivational sayings (disabled by default)
+- Dad Jokes: 923 classic dad jokes and puns (enabled by default for wipes in raids/parties)
+- Warcraft Jokes: 84 Azeroth-specific jokes (disabled by default)
+- Demotivational: 68 demotivational sayings (disabled by default)
 - Guild Quotes: Empty - populate with your guild's memorable quotes (disabled by default)
 
 **How It Works:**
@@ -178,6 +183,7 @@ Settings are stored in `WTF/Account/<account>/SavedVariables/TarballsDadabase.lu
 - `soundEffect` - Selected sound effect ID (default: LEVEL_UP)
 - `stats` - Usage statistics per module
 - `debug` - Debug mode toggle (default: false)
+- `migrations` - One-time migration flags, so content moves are not re-applied on every login
 - `modules` - Per-module settings:
   - `enabled` - Module enable/disable
   - `triggers` - (Legacy) Preserved for backward compatibility, no longer used
@@ -193,9 +199,11 @@ Settings are stored in `WTF/Account/<account>/SavedVariables/TarballsDadabase.lu
 
 The addon uses a modular architecture:
 - `Database.lua` - Generic content management for all modules
+- `Migrations.lua` - One-time SavedVariables migrations (carries user deletions across content that moves between modules)
 - `Core.lua` - Event handling, triggers, slash commands
 - `Config.lua` - Configuration panel framework
 - `Modules/DadJokes.lua` - Dad jokes module
+- `Modules/WarcraftJokes.lua` - World of Warcraft themed jokes module
 - `Modules/Demotivational.lua` - Demotivational sayings module
 - `Modules/GuildQuotes.lua` - Guild quotes module
 
@@ -203,4 +211,4 @@ New content types can be easily added by creating a new module file.
 
 ## Version
 
-Current version: 0.5.4-beta.1
+Current version: 0.6.0-alpha.1
