@@ -211,4 +211,4 @@ New content types can be easily added by creating a new module file.
 
 ## Version
 
-Current version: 0.6.0-alpha.1
+Current version: 0.6.0-beta.1

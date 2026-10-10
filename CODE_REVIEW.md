@@ -59,12 +59,13 @@ Resolved by moving the tab bar to a left gutter (`TAB_GUTTER_WIDTH = 175`) with 
 anchored to the right; editor/divider/prefix-input widths were reduced to fit. A gutter
 scales to any number of modules, so this cannot recur.
 
-**I-2. `string.trim` is not a Lua 5.1 / WoW API method.**
-`Core.lua:357`, `Config.lua:737`, `Database.lua:106` all call `:trim()`. WoW runs Lua 5.1 and
-exposes `strtrim(s)`, not `string.trim`. If `trim` is not present this is an
+**I-2. `string.trim` is not a Lua 5.1 / WoW API method. — NOT A BUG (verified in alpha)**
+`Core.lua`, `Config.lua`, and `Database.lua` all call `:trim()`. WoW runs Lua 5.1 and the
+documented API is `strtrim(s)`, so the risk was an
 `attempt to call method 'trim' (a nil value)` error on the slash command, on every Save in the
-content editor, and in `SanitizeText`. Needs in-game verification; if confirmed, replace with
-`strtrim` (or a local shim).
+content editor, and in `SanitizeText`. Alpha testing of 0.6.0-alpha.1 exercised all three paths
+with no such error, so the current client does provide `trim`. A defensive `strtrim` shim is
+still optional insurance if you want to support older clients.
 
 **I-3. SavedVariables migration for moved jokes. — RESOLVED (risk assessed)**
 Content tracking is per-module (`userAdditions` / `userDeletions`), so a user who had
@@ -216,16 +217,16 @@ tab side.
 
 ---
 
-## 4. Decisions to confirm before the 0.6.0 release
+## 4. Decisions — resolved during the alpha
 
-1. Branch/version naming: this branch is `feature/0.6.0-alpha-warcraft-jokes` and bumps to
-   `0.6.0-alpha.1` (alpha, since this needs testing). If you prefer to keep the
-   version bump at release time, revert `Core.lua` + TOC.
-2. Whether the 26 borderline jokes move too (see A.4).
-3. Whether the tab overflow fix (I-1) is in scope for this pass — the feature is visually
-   broken without it.
-4. Whether `string.trim` (I-2) is actually available in the current client — if not, it is a
-   live bug on `main` today, independent of this feature.
+1. Branch/version naming: branch `feature/0.6.0-alpha-warcraft-jokes`, version bumped in
+   `Core.lua` + TOC. Alpha promoted to `0.6.0-beta.1` after in-game testing.
+2. The 26 borderline jokes stay in Dad Jokes for now (see A.4) — revisit before the stable
+   0.6.0 release.
+3. The tab overflow fix (I-1) was brought into scope; the left-gutter layout verified in-game.
+4. `string.trim` (I-2) confirmed available on the current client during alpha testing.
+5. Start-up counts include populated but disabled modules; only empty databases are omitted.
+   Kept as is.
 
 ---
 
@@ -302,7 +303,7 @@ Status legend: **[applied]** in this pass, **[open]** left for in-game testing.
     `Dadabase.DefaultSound`. Per-option fallbacks stay as literals because each option needs a
     different fallback id, and collapsing them to one value would collide with the explicit `888`
     entry in the dropdown table.
-15. **[open] `string.trim` is not guaranteed on the WoW client.** `Core.lua`, `Config.lua`, and
-    `Database.lua` call `:trim()`. If the client does not provide it, every call raises
-    `attempt to call method 'trim' (a nil value)`. Needs in-game confirmation; if it is absent,
-    replace with `strtrim` or a local `trim()` helper in `Database.lua`.
+15. **[resolved — verified in-game] `string.trim` is not guaranteed on the WoW client.**
+    `Core.lua`, `Config.lua`, and `Database.lua` call `:trim()`. No `attempt to call method
+    'trim' (a nil value)` error surfaced during alpha testing, so the current client provides
+    it. A `strtrim` shim remains optional for older clients.

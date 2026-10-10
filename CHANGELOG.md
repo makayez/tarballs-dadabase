@@ -1,7 +1,18 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
-## [0.6.0-alpha.1] - Unreleased (branch `feature/0.6.0-alpha-warcraft-jokes`)
+## [0.6.0-beta.1] - 2026-10-10
+
+Promotes the 0.6.0-alpha.1 build to the beta channel after in-game alpha testing. Addon code is
+unchanged from 0.6.0-alpha.1 apart from the version bump.
+
+### Changed
+- Promoted to beta after alpha testing passed in-game: left-gutter tab layout, the
+  SavedVariables migration for moved jokes, the start-up per-module breakdown, the new content
+  tab, and content editor save/reset all behaved as intended
+- Version bumped 0.6.0-alpha.1 -> 0.6.0-beta.1
+
+## [0.6.0-alpha.1] - 2026-10-08
 
 ### Added
 - Separate "Warcraft Jokes" content database (`Modules/WarcraftJokes.lua`) with its own config tab, enable toggle, group settings, prefix, and content editor
