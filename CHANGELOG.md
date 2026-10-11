@@ -1,6 +1,47 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Settings statistics rows no longer reshuffle between opens: registered modules are iterated in registration order (`Manager.moduleOrder` / `OrderedModules()`) instead of `pairs` over a string-keyed table. Held back from the 0.6.0 tag because it is new since beta validation; needs a glance at the Settings tab.
+
+## [0.6.0] - 2026-10-10
+
+Stable release of the 0.6.0 line (previously shipped as 0.6.0-alpha.1 and 0.6.0-beta.1). Addon
+code is unchanged from those prereleases.
+
+### Added
+- Separate "Warcraft Jokes" content database (`Modules/WarcraftJokes.lua`) with its own config tab, enable toggle, raid/party settings, prefix, and content editor
+- Warcraft Jokes defaults to disabled; the selection persists in SavedVariables like every other module
+- `Migrations.lua`: one-time, idempotent migration that carries user deletions across content moved between modules (Dad Jokes -> Warcraft Jokes) and prunes the stale deletions from the source
+- Start-up message now reports a per-module content breakdown and skips databases with no content
+- Per-module descriptor pools for the start-up message (guild quotes get "pearls of wisdom"-style words instead of joke names)
+- Help line on each content tab explaining that enabled modules are pooled into one random pick
+
+### Changed
+- 84 Warcraft/Warcraft-character-specific jokes moved out of Dad Jokes into the new database (Dad Jokes 1007 -> 923, total content unchanged at 1007)
+- Dad Jokes `dbVersion` bumped 2 -> 3 to reflect the changed default content
+- Config tab bar moved to a left gutter so additional content tabs cannot overflow the panel
+- About tab and Interface Options text updated to list the Warcraft Jokes tab
+
+### Fixed
+- `Modules/DadJokes.lua` contained a stray duplicate `}` from the content split, which would have prevented the file from loading
+- `GetChecked()` results are normalised to real booleans before being stored, and group tests use a truthy check, so a module stored as `1` by an older client is no longer enabled-but-never-triggering
+- `ShowTab` matches the settings tab by identity instead of by hardcoded index, so adding or reordering tabs cannot break the statistics refresh
+- `RegisterModule` prints and skips on duplicate registration instead of raising a load-time error that would abort the addon's remaining files
+
+### Technical
+- Prefix templates hoisted to a `PREFIX_TEMPLATES` table; `Dadabase.MAX_PREFIX_LENGTH` is computed from the longest template and the content editor's per-line cap is derived from it instead of hardcoded as 195
+- Shared `BuildMessage` / `RecordUsage` / `PlaySelectedSound` helpers in `Core.lua`, and a single instance/raid/party branch shared by the automatic trigger and the manual commands
+- `DatabaseManager:InvalidateCache(moduleId)` is now the only place cache clearing happens; read-only `GetContentCount(moduleId)` added for Config stats, status, and the load message
+- `GetContentSummary()` sorts by module name so the start-up breakdown is stable between logins
+- `Config:BuildModuleContent` split into widget factories (`AddCheckbox`, `AddHelpText`, `AddSectionLabel`, `AddWarningBanner`)
+- Random-content pick reuses a scratch table instead of allocating one per trigger
+- Default sound centralised as `Dadabase.DefaultSound`; cooldown command captures its number once
+
+See `0.6.0-alpha.1` and `0.6.0-beta.1` below for the full breakdown of the development line.
+
 ## [0.6.0-beta.1] - 2026-10-10
 
 Promotes the 0.6.0-alpha.1 build to the beta channel after in-game alpha testing. Addon code is
