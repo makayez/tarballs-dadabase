@@ -149,7 +149,9 @@ tab side.
   is no multi-message splitting).
 - **I-17.** CHANGELOG — entry added for this branch.
 - **I-18.** Statistics list order is non-deterministic (`pairs` in `GetModuleStats`), so the
-  Settings tab reshuffles rows between opens.
+  Settings tab reshuffles rows between opens. — **RESOLVED after the 0.6.0 tag.** Registered
+  modules are now iterated in registration order via `Manager:OrderedModules()`. Held out of
+  0.6.0 because it is new code past beta validation; verify the Settings tab row order in-game.
 - **I-19.** `math.randomseed(time())` is pcall-guarded but WoW's `math.randomseed` is
   effectively a no-op in some client versions; distribution is fine, just don't rely on it.
 - **I-20.** No lint / static analysis in CI (only packaging). No test harness for the

@@ -161,6 +161,20 @@ function Manager:RegisterModule(moduleId, config)
     table.insert(self.moduleOrder, moduleId)
 end
 
+-- Registered modules in registration order. `self.modules` is keyed by module id,
+-- so `pairs` has no defined order; anything user-visible (statistics rows, debug
+-- output) needs this instead.
+function Manager:OrderedModules()
+    local ordered = {}
+    for _, moduleId in ipairs(self.moduleOrder) do
+        local module = self.modules[moduleId]
+        if module then
+            table.insert(ordered, { moduleId = moduleId, module = module })
+        end
+    end
+    return ordered
+end
+
 -- ============================================================================
 -- Database Initialization
 -- ============================================================================
@@ -169,8 +183,9 @@ function Manager:Initialize()
     TarballsDadabaseDB = TarballsDadabaseDB or {}
     TarballsDadabaseDB.modules = TarballsDadabaseDB.modules or {}
 
-    -- Initialize each registered module
-    for moduleId, module in pairs(self.modules) do
+    -- Initialize each registered module (registration order keeps debug output stable)
+    for _, entry in ipairs(self:OrderedModules()) do
+        local moduleId, module = entry.moduleId, entry.module
         local moduleDB = TarballsDadabaseDB.modules[moduleId]
 
         if TarballsDadabaseDB.debug then

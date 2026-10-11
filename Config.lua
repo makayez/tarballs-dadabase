@@ -266,13 +266,17 @@ local function CreateConfigPanel()
             return stats
         end
 
-        for moduleId, module in pairs(Manager.modules) do
-            local told = TarballsDadabaseDB.stats[moduleId] or 0
-            stats[moduleId] = {
-                name = module.name,
-                count = Manager:GetContentCount(moduleId),
-                told = told
-            }
+        -- Registration order keeps the rows stable between opens; pairs over a
+        -- string-keyed table has no defined order and reshuffled the list.
+        for _, moduleId in ipairs(Manager.moduleOrder) do
+            local module = Manager.modules[moduleId]
+            if module then
+                stats[#stats + 1] = {
+                    name = module.name,
+                    count = Manager:GetContentCount(moduleId),
+                    told = TarballsDadabaseDB.stats[moduleId] or 0
+                }
+            end
         end
         return stats
     end
@@ -287,13 +291,13 @@ local function CreateConfigPanel()
         end
 
         local stats = GetModuleStats()
-        if not stats or not next(stats) then
+        if not stats or #stats == 0 then
             statsText:SetText("No modules loaded yet")
             return
         end
 
         local lines = {}
-        for moduleId, stat in pairs(stats) do
+        for _, stat in ipairs(stats) do
             table.insert(lines, stat.name .. ": " .. stat.count .. " items, " .. stat.told .. " told")
         end
         statsText:SetText(table.concat(lines, "\n"))
