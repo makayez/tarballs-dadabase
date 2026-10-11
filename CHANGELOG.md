@@ -1,10 +1,18 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
-## [Unreleased]
+## [0.6.1-beta.1] - 2026-10-11
+
+First beta of the 0.6.1 line. Ships the one change that was held back from the `0.6.0` tag so it
+can be validated in-game before it reaches a stable release. Addon code is otherwise identical
+to 0.6.0.
 
 ### Fixed
-- Settings statistics rows no longer reshuffle between opens: registered modules are iterated in registration order (`Manager.moduleOrder` / `OrderedModules()`) instead of `pairs` over a string-keyed table. Held back from the 0.6.0 tag because it is new since beta validation; needs a glance at the Settings tab.
+- Settings statistics rows no longer reshuffle between opens: registered modules are iterated in registration order (`Manager.moduleOrder` / `OrderedModules()`) instead of `pairs` over a string-keyed table. Rows now match the config tab order (Dad Jokes, Warcraft Jokes, Demotivational, Guild Quotes)
+
+### Technical
+- `Manager:OrderedModules()` added, and `Manager:Initialize()` uses it so debug output is stable between logins
+- `GetModuleStats()` returns an ordered array instead of a module-id-keyed table
 
 ## [0.6.0] - 2026-10-10
 
