@@ -2,7 +2,7 @@
 
 local ADDON_NAME = ...
 Dadabase = Dadabase or {}
-Dadabase.VERSION = "0.6.1-beta.1"
+Dadabase.VERSION = "0.6.1-beta.2"
 
 -- Constants
 local DEFAULT_COOLDOWN = 10
@@ -231,12 +231,20 @@ local function SendContent(message, chatType)
     -- Delay message to avoid protected context (ADDON_ACTION_FORBIDDEN)
     -- 0.5s is needed to reliably escape the protected frame; 0.1s was insufficient for party and raid wipes
     C_Timer.After(0.5, function()
-        if chatType then
-            SendChatMessage(message, chatType)
-        else
-            -- Defensive fallback: the automatic path always has a group, so chatType
-            -- is set. Kept so a nil chat type can never silently drop the message.
-            print(message)
+        -- pcall so a failed send still clears the flag: an unprotected error here
+        -- would leave pendingMessage set until PLAYER_LEAVING_WORLD and silently
+        -- swallow every later trigger.
+        local success, err = pcall(function()
+            if chatType then
+                SendChatMessage(message, chatType)
+            else
+                -- Defensive fallback: the automatic path always has a group, so chatType
+                -- is set. Kept so a nil chat type can never silently drop the message.
+                print(message)
+            end
+        end)
+        if not success then
+            DebugPrint("Send failed: " .. tostring(err))
         end
         pendingMessage = false
     end)
@@ -313,9 +321,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
             -- Initialize database
             Dadabase.DatabaseManager:Initialize()
 
-            -- Build module tabs now that per-module SavedVariables defaults exist
+            -- Register with interface options. Module tabs need no explicit build:
+            -- Config.moduleTabs is populated by each module file at load time, and
+            -- CreateConfigPanel turns them into widgets on first Show(), which always
+            -- happens after Initialize() has seeded the per-module defaults.
             if Dadabase.Config then
-                Dadabase.Config:BuildTabs()
                 Dadabase.Config:RegisterInterfaceOptions()
             end
 
@@ -416,7 +426,11 @@ local function SendManualContent(chatChannel)
     lastManualCommandTime = now
 
     -- Send directly without timers to avoid taint
-    SendChatMessage(message, chatChannel)
+    local success, err = pcall(SendChatMessage, message, chatChannel)
+    if not success then
+        print("Tarball's Dadabase: sending failed - " .. tostring(err))
+        return
+    end
 
     RecordUsage(moduleId)
 end
@@ -491,8 +505,10 @@ SlashCmdList["TARBALLSDADABASE"] = function(msg)
             ""
         }
 
-        -- Module status
-        for moduleId, module in pairs(Dadabase.DatabaseManager.modules) do
+        -- Module status (registration order, so the rows match the config tabs and
+        -- do not reshuffle between invocations)
+        for _, entry in ipairs(Dadabase.DatabaseManager:OrderedModules()) do
+            local moduleId, module = entry.moduleId, entry.module
             local moduleDB = TarballsDadabaseDB.modules[moduleId]
             if moduleDB then
                 local count = Dadabase.DatabaseManager:GetContentCount(moduleId)

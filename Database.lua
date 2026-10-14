@@ -546,13 +546,19 @@ function Manager:SetEffectiveContent(moduleId, newContent)
         error("SetEffectiveContent: moduleDB not initialized for: " .. tostring(moduleId))
     end
 
-    -- Build set of new content for fast lookup
+    -- Build set of new content for fast lookup, collapsing duplicates on the way
+    -- in. Without this a line typed twice is stored twice, counted twice, and is
+    -- twice as likely to be picked.
     local newContentSet = {}
+    local uniqueContent = {}
     for _, item in ipairs(newContent) do
         if type(item) ~= "string" then
             error("SetEffectiveContent: all content items must be strings, found " .. type(item))
         end
-        newContentSet[item] = true
+        if not newContentSet[item] then
+            newContentSet[item] = true
+            table.insert(uniqueContent, item)
+        end
     end
 
     -- Build set of default content for fast lookup
@@ -566,7 +572,7 @@ function Manager:SetEffectiveContent(moduleId, newContent)
     moduleDB.userDeletions = {}
 
     -- Find additions: items in newContent that are NOT in defaults
-    for _, item in ipairs(newContent) do
+    for _, item in ipairs(uniqueContent) do
         if not defaultSet[item] then
             table.insert(moduleDB.userAdditions, item)
         end

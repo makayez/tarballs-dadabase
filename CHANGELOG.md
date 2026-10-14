@@ -1,6 +1,51 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [0.6.1-beta.2] - 2026-10-14
+
+Fixes the login error reported on 12.1.5, plus the correctness items the code review had left
+open, and adds a test harness so the class of bug that caused that error cannot ship again.
+
+### Fixed
+- **`Core.lua:318: attempt to call a nil value (method 'BuildTabs')` at login.** `Dadabase.Config:BuildTabs()`
+  was called but the function was never written — the call landed in the 0.6.0-alpha.1 cleanup
+  pass (`62d575c`) and shipped in `0.6.0-alpha.1`, `0.6.0-beta.1`, **`0.6.0` (stable)** and
+  `0.6.1-beta.1`. Because it throws inside the `ADDON_LOADED` handler it also aborted the rest of
+  that branch, so the start-up content message and the *Settings → AddOns → Tarball's Dadabase*
+  entry were silently missing, while wipe triggering still worked (`ENCOUNTER_START`/`ENCOUNTER_END`
+  are registered earlier). The call is removed: `Config.moduleTabs` is filled by each module file
+  at load time and `CreateConfigPanel` builds the tabs from it on first open. **This is not a 12.1.5
+  API change** — the client update and the update to the 0.6 line simply happened together.
+- **Duplicate content lines are collapsed on save.** `SetEffectiveContent` stored every line the
+  editor held, so a quote typed three times was saved three times, counted three times in the
+  editor header and Statistics, and was three times as likely to be picked. Additions are now
+  de-duplicated (order preserved).
+- **Save Changes / Reset to Defaults are no longer grayed out by a panel refresh.** Both buttons
+  were in the module-disabled control set, so reopening the panel or running `/dadabase on|off`
+  disabled them while the editor still held unsaved text. Content editing is independent of
+  trigger state, so they are now gated only by whether the text has changed — which matters most
+  for Guild Quotes, which ships empty and disabled.
+- **`/dadabase status` lists modules in registration order.** The `pairs` loop that 0.6.1 fixed for
+  the Settings statistics survived in the status command, so its module rows reshuffled between
+  invocations. It now uses `Manager:OrderedModules()` and matches the config tab order.
+- **A failed send no longer wedges the addon.** `SendChatMessage` in the 0.5s anti-taint timer was
+  unprotected; if it raised, `pendingMessage` stayed set until `PLAYER_LEAVING_WORLD` and every
+  later wipe was silently dropped. Both the automatic and manual send paths are now `pcall`-guarded.
+
+### Added
+- `Tests/wow_stub.lua`: a stub WoW client that loads the addon in TOC order, dispatches
+  `ADDON_LOADED`, drives the slash commands and a simulated wipe, builds the config panel, and runs
+  18 assertions covering load health, start-up message, Interface Options registration, wipe
+  triggering, cooldown suppression, duplicate collapsing, status ordering, panel tab count, and
+  Save/Reset gating. Exits non-zero on failure. Run with `lua Tests/wow_stub.lua`.
+
+### Technical
+- `.pkgmeta` now ignores `Tests/`, `CODE_REVIEW.md`, `.github`, `.zed` and `.gitignore` so
+  development files are never packaged into the addon folder
+- `CODE_REVIEW.md` statuses updated: I-6, I-18 and I-20 closed (partially, for I-20), improvements
+  A.5 and C.19 applied, and the three new findings recorded as I-21 (the `BuildTabs` regression),
+  I-22 (Save/Reset gating) and I-23 (unprotected send)
+
 ## [0.6.1-beta.1] - 2026-10-11
 
 First beta of the 0.6.1 line. Ships the one change that was held back from the `0.6.0` tag so it

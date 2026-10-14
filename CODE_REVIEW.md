@@ -78,6 +78,19 @@ and the worst failure mode is a no-op. The alternative — a generic "deletions 
 across all modules" rule — was rejected because a user can add the same line to one module
 while deleting it from another, which that rule would corrupt.
 
+**I-21. `Core.lua` calls `Dadabase.Config:BuildTabs()`, which is defined nowhere. — RESOLVED (0.6.1-beta.2)**
+Found from a reported client error: `Core.lua:318: attempt to call a nil value (method 'BuildTabs')`.
+The call was added in the 0.6.0-alpha.1 cleanup pass (`62d575c`) — the comment was rewritten to
+"Build module tabs…" and the call inserted, but no `BuildTabs` was ever written. It shipped in
+`v0.6.0-alpha.1`, `v0.6.0-beta.1`, **`v0.6.0` (stable, on CurseForge)** and `v0.6.1-beta.1`.
+Because it throws inside the `ADDON_LOADED` handler it also aborts the rest of that branch, so
+users lost the start-up content message and the *Settings → AddOns → Tarball's Dadabase* entry,
+while wipe triggering kept working (`ENCOUNTER_*` are registered earlier) — which is why it read
+as a spurious login error rather than a broken addon. Removed: `Config.moduleTabs` is filled by
+each module file at load time and `CreateConfigPanel` turns them into widgets on first `Show()`,
+which always happens after `Initialize()`. `Tests/wow_stub.lua` now asserts that `ADDON_LOADED`
+completes, that the start-up message prints, and that the Interface Options category registers.
+
 ### P2 — Correctness / robustness
 
 **I-4. `GetContentPrefix` silently returns `""` for any module not in its hardcoded table. — RESOLVED**
@@ -93,11 +106,14 @@ longest template, and `Config.lua` derives the per-line cap from it.
 Also the editor says "max 195 **characters** per line" while the check is `#line > 195`
 (**bytes**) — non-ASCII entries are rejected earlier than the label implies.
 
-**I-6. Duplicate lines are not collapsed, contradicting the comment.**
+**I-6. Duplicate lines are not collapsed, contradicting the comment. — RESOLVED (0.6.1-beta.2)**
 `Config.lua:758` claims saved content has "collapsed duplicates", but
 `Database.SetEffectiveContent` (`Database.lua:463-470`) inserts every non-default line,
 including duplicates, into `userAdditions`. Duplicates are only deduped for the
 *deletion* side (`newContentSet`). Behaviour and comment disagree.
+`SetEffectiveContent` now builds a de-duplicated `uniqueContent` list (order preserved) and uses
+it for the additions pass, so a line typed three times is stored once, counted once, and picked
+once. Covered by a harness check.
 
 **I-7. `ShowTab` hardcoded `i == 2` to refresh statistics — RESOLVED**, now matched by tab
 identity via a captured `settingsTab` reference.
@@ -139,6 +155,18 @@ A module registered without a tab (or a tab registered for an unregistered modul
 silently or errors at runtime. `RegisterModule` errors on duplicates, but nothing checks the
 tab side.
 
+**I-22. `RefreshControls` force-disables Save/Reset even when the editor is dirty. — RESOLVED (0.6.1-beta.2)**
+`saveBtn`/`resetBtn` were in `moduleControls`, so any `RefreshControls` pass (panel reopen via
+`Config:Show` → `Refresh`, or `/dadabase on|off`) grayed them out while the editor still held
+unsaved text — the text was on screen, the button to commit it was not. Content editing is
+independent of trigger state, so both buttons are now gated only by whether the text changed.
+This matters most for Guild Quotes, which ships empty and disabled.
+
+**I-23. `SendChatMessage` in the 0.5s timer is unprotected, so `pendingMessage` can stick. — RESOLVED (0.6.1-beta.2)**
+If the send raised, the flag stayed set until `PLAYER_LEAVING_WORLD` and every later trigger was
+silently dropped. Both the automatic and manual send paths are now `pcall`-guarded, and the flag
+clears on failure.
+
 ### P3 — Hygiene / consistency
 
 - **I-15.** About tab text — **RESOLVED** (now lists Warcraft Jokes; the About and Interface
@@ -152,10 +180,16 @@ tab side.
   Settings tab reshuffles rows between opens. — **RESOLVED after the 0.6.0 tag.** Registered
   modules are now iterated in registration order via `Manager:OrderedModules()`. Held out of the
   0.6.0 tag and shipped in `0.6.1-beta.1` instead — verify the Settings tab row order in-game.
+  The same `pairs` loop survived in `/dadabase status` (`Core.lua`); that was switched to
+  `OrderedModules()` in `0.6.1-beta.2`, so status rows now match the config tab order.
 - **I-19.** `math.randomseed(time())` is pcall-guarded but WoW's `math.randomseed` is
   effectively a no-op in some client versions; distribution is fine, just don't rely on it.
 - **I-20.** No lint / static analysis in CI (only packaging). No test harness for the
-  change-tracking logic, which is the most bug-prone part of the addon.
+  change-tracking logic, which is the most bug-prone part of the addon. — **PARTIALLY RESOLVED
+  (0.6.1-beta.2):** `Tests/wow_stub.lua` is a stub WoW client that loads the addon in TOC order
+  and asserts load health, `ADDON_LOADED` completion, wipe triggering, cooldown suppression,
+  duplicate collapsing, status ordering, panel tab count, and Save/Reset gating. It runs on any
+  Lua 5.1+ (`lua Tests/wow_stub.lua`) and exits non-zero on failure. luacheck in CI is still open.
 
 ---
 
@@ -181,7 +215,8 @@ tab side.
    Already moved but arguable: `6 out of 7 dwarves aren't happy`, `undead cross the road`,
    `dwarves lightbulb`, `shaman / elementary school`, `snail mount`, `When I raid...count on them`.
    Current split: 84 moved, 923 kept.
-5. **Deduplicate on save** (fixes I-6) or drop the misleading comment.
+5. **[applied 0.6.1-beta.2] Deduplicate on save** (fixes I-6); the misleading comment is now
+   accurate.
 6. **Compute `MAX_CONTENT_ENTRY_LENGTH` from the longest prefix** instead of hardcoding 195.
 
 **B. UI / UX**
@@ -212,8 +247,10 @@ tab side.
     but nothing enforces it. Consider returning a copy for UI use, or freezing it.
 18. **No `SavedVariablesPerCharacter` option** — stats and settings are account-wide. Worth
     documenting at minimum.
-19. **CI: add luacheck / lua-lint** and a small unit test for the change-tracking
-    (additions/deletions) logic, which is where the migration risk lives.
+19. **[partially applied 0.6.1-beta.2] CI: add luacheck / lua-lint** and a small unit test for
+    the change-tracking (additions/deletions) logic, which is where the migration risk lives.
+    `Tests/wow_stub.lua` covers the change-tracking behaviour outside the client; the CI lint step
+    is still open.
 20. **`.pkgmeta` has no `interface` / `ignored` fields**; packaging relies entirely on the TOC.
     Fine, but a `## X-...` category/keywords block would improve CurseForge metadata.
 

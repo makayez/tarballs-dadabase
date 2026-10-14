@@ -1,3 +1,12 @@
 package-as: TarballsDadabase
 
 enable-nolib-creation: no
+
+# Development-only files: the stub-client test harness and repo bookkeeping
+# should never ship inside the addon folder.
+ignore:
+  - Tests
+  - CODE_REVIEW.md
+  - .github
+  - .zed
+  - .gitignore

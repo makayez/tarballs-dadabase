@@ -31,6 +31,7 @@ World of Warcraft addon that automatically shares content (dad jokes, Warcraft j
   - Smart Save and Reset buttons (only enabled when text is edited)
   - Buttons visually contained within editor frame for clarity
   - Lines over 195 characters are skipped when saving (leaving room for the prefix)
+  - Duplicate lines are collapsed on save, so a joke typed twice is only told once
   - Truncation is UTF-8 safe, so a multibyte character is never cut in half
 - **Global Controls:**
   - Master enable/disable toggle
@@ -116,9 +117,12 @@ A visual divider separates auto-saving settings (above) from manual-save content
 
 - Edit all content in a multi-line text editor (one item per line)
 - Add custom content or remove any lines
-- Save Changes and Reset to Defaults buttons (disabled until text is edited)
+- Save Changes and Reset to Defaults buttons (disabled until text is edited). Content can be
+  composed and saved while the module is off — Guild Quotes ships empty and disabled, so gating
+  Save on the module switch would make it impossible to populate
 - Buttons are contained within the editor frame with a divider for visual clarity
 - Lines over 195 characters are skipped when saving (that leaves room for the prefix). Messages over 255 bytes are truncated on send — there is no multi-message splitting
+- Duplicate lines are collapsed when saving
 
 ## Content Database
 
@@ -209,6 +213,20 @@ The addon uses a modular architecture:
 
 New content types can be easily added by creating a new module file.
 
+## Testing
+
+`Tests/wow_stub.lua` is a stub WoW client: it loads the addon in TOC order, dispatches
+`ADDON_LOADED`, drives the slash commands and a simulated wipe, builds the config panel, and
+asserts behaviour that has regressed before (load health, wipe triggering, cooldown suppression,
+duplicate collapsing, status ordering, panel tab count, Save/Reset gating).
+
+```
+lua Tests/wow_stub.lua        # exit 0 = all checks passed
+```
+
+It needs Lua 5.1 or newer and does not touch the game. It is excluded from release packages by
+`.pkgmeta`.
+
 ## Version
 
-Current version: 0.6.1-beta.1
+Current version: 0.6.1-beta.2

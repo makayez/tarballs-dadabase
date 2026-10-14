@@ -765,12 +765,16 @@ function Config:BuildModuleContent(container, moduleId)
         end)
     end)
 
-    -- Controls disabled when the addon or this module is disabled. enableCheckbox and
-    -- editBox stay interactive on purpose: users can configure and add content before
-    -- enabling the module. customPrefixCheckbox and prefixInput are handled by
-    -- UpdatePrefixControls.
-    local moduleControls = {raidCheckbox, partyCheckbox, prefixCheckbox, saveBtn, resetBtn}
-    local controlsWithTooltips = {raidCheckbox, partyCheckbox, prefixCheckbox, saveBtn, resetBtn}
+    -- Controls disabled when the addon or this module is disabled. enableCheckbox,
+    -- editBox, saveBtn and resetBtn stay interactive on purpose: content can be
+    -- composed and committed before a module is switched on (Guild Quotes ships
+    -- empty and disabled, so gating Save would make it impossible to populate).
+    -- Save/Reset are gated only by whether the editor text has changed, so a
+    -- RefreshControls pass (panel reopen, /dadabase on|off) cannot gray them out
+    -- underneath a user who has unsaved edits. customPrefixCheckbox and
+    -- prefixInput are handled by UpdatePrefixControls.
+    local moduleControls = {raidCheckbox, partyCheckbox, prefixCheckbox}
+    local controlsWithTooltips = {raidCheckbox, partyCheckbox, prefixCheckbox}
 
     -- Tooltip handlers (defined once to prevent memory leaks)
     local function ShowGlobalDisabledTooltip(self)
