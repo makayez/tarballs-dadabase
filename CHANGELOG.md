@@ -1,6 +1,17 @@
 # Changelog
 All notable changes to Tarball's Dadabase will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Compatibility with WoW 12.1.7 (interface 120107), staged ahead of the patch
+
+### Removed
+- Support for the WoW 12.0 line: interface entries `120007` (12.0.7) and `120005` (12.0.5)
+  dropped from the TOC. Supported list is now 12.1.7, 12.1.5 and 12.1.0. Players still on 12.0.x
+  will see the addon flagged out of date; it only stops loading if they have *Load Outdated
+  Addons* switched off. No addon code used a 12.0-only or 12.1-only API.
+
 ## [0.6.1-beta.2] - 2026-10-14
 
 Fixes the login error reported on 12.1.5, plus the correctness items the code review had left
